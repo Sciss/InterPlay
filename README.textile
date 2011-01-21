@@ -1,0 +1,3 @@
+h2. README
+
+An internal project of me, a piece for amplified piano. (C)opyright by Hanns Holger Rutz. All rights reserved. Covered by the GNU General Public License v2+ (see licenses folder).
