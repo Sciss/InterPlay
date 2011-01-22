@@ -13,6 +13,8 @@ class InterPlayProject( info: ProjectInfo ) extends ProguardProject( info ) {
 //   val tabletWrapper       = "tabletwrapper" % "tabletwrapper" % "0.12" from "http://github.com/downloads/Sciss/JNITablet/tabletwrapper-0.12.jar"
 //   val fscapeJobs          = "de.sciss" %% "fscapejobs" % "0.10"
 
+//   val configgy            = "net.lag" % "configgy" % "3.0.0-SNAPSHOT"
+
    // for some reason, we need to add the snapshot repos here again...
    val ccstmRepo           = "CCSTM Release Repository at PPL" at "http://ppl.stanford.edu/ccstm/repo-releases"
    val ccstmSnap           = "CCSTM Snapshot Repository at PPL" at "http://ppl.stanford.edu/ccstm/repo-snapshots"
