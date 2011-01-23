@@ -47,6 +47,12 @@ class ControlPanel( numInputMeters: Int ) extends JPanel {
 //      val mg = new PeakMeterGroup( Array( m1, m2 ))
 //      panel.add( m1 )
 //      panel.add( m2 )
+
+      val ggClock = new Wallclock
+ggClock.start
+      panel.add( ggClock )
+      panel.add( Box.createHorizontalStrut( 4 ))
+
       val numCh = masterBus.numChannels
       masterMeterPanel.setOrientation( SwingConstants.HORIZONTAL )
       masterMeterPanel.setNumChannels( numCh )
