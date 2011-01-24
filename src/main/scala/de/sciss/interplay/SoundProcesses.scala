@@ -75,8 +75,6 @@ object SoundProcesses {
 
       // -------------- GENS --------------
 
-
-
       gen( "live" ) {
          val pmode      = pScalar( "mode", ParamSpec( 0, 1, LinWarp, 1 ), 0 )
          val ppos       = pScalar( "pos", ParamSpec( 0, 1 ), 0 )
@@ -192,6 +190,32 @@ object SoundProcesses {
             val amp        = (frame - startFrame).min( stopFrame - frame ).min( 48 ) / 48
             val sig        = BufRd.ar( liveBuf.numChannels, liveBuf.id, frame, interp = 2 )
             sig * amp
+         }
+      }
+
+      gen( "sum-rec" ) {
+         val pdur    = pScalar( "dur", ParamSpec( 1, 120 ), 20 )
+         val sumPath = new File( REC_PATH, "sum" )
+         graph {
+            val in         = LeakDC.ar( InFeedback.ar( masterBus.index, masterBus.numChannels ))
+            val recPath    = File.createTempFile( "sum", ".aif", sumPath )
+            val b          = bufRecord( recPath.getAbsolutePath, in.numOutputs )
+            DiskOut.ar( b.id, in )
+            val done       = Done.kr( Line.kr( dur = pdur.ir ))
+            val me         = Proc.local
+            done.react {
+               ProcTxn.spawnAtomic { implicit tx =>
+                  me.stop
+                  FScape.injectWavelet( recPath )
+               }
+            }
+            Silent.ar
+         }
+      }
+
+      gen( "test" ) {
+         graph {
+            PinkNoise.ar( LFPulse.kr( 1 ))
          }
       }
 
@@ -565,7 +589,7 @@ object SoundProcesses {
             }
          }
 
-         diff( "O-all" + suff ) {
+         val d = diff( "O-all" + suff ) {
             val pamp  = pAudio( "amp", ParamSpec( 0.01, 10, ExpWarp ), 1 )
             val pout  = pAudioOut( "out", None )
 
