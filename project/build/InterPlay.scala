@@ -6,10 +6,10 @@ import sbt.{ FileUtilities => FU, _}
  *    @version 0.12, 21-Jul-10
  */
 class InterPlayProject( info: ProjectInfo ) extends ProguardProject( info ) {
-   val wolkenpumpe         = "de.sciss" %% "wolkenpumpe" % "0.22"
+   val wolkenpumpe         = "de.sciss" %% "wolkenpumpe" % "0.23"
 //   val scalaFreesound      = "de.sciss" %% "scalafreesound" % "0.10"
 //   val scalaFreesoundSwing = "de.sciss" %% "scalafreesoundswing" % "0.11"
-   val soundProcesses      = "de.sciss" %% "soundprocesses" % "0.21"  // XXX tmp
+   val soundProcesses      = "de.sciss" %% "soundprocesses" % "0.22"  // XXX tmp
 //   val tabletWrapper       = "tabletwrapper" % "tabletwrapper" % "0.12" from "http://github.com/downloads/Sciss/JNITablet/tabletwrapper-0.12.jar"
 //   val fscapeJobs          = "de.sciss" %% "fscapejobs" % "0.10"
 

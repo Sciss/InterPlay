@@ -36,9 +36,12 @@ object InterPlay {
    lazy val logPane = {
       val res = new LogPane( 2, 30 )
       res.init
-      val scroll = res.getComponent( 0 ).asInstanceOf[ JScrollPane ]
-      scroll.setBorder( null )
-      scroll.getViewport().getView().setFont( new Font( "Menlo", Font.PLAIN, 8 ))
+      res.getComponent( 0 ) match {
+         case scroll: JScrollPane =>
+            scroll.setBorder( null )
+            scroll.getViewport().getView().setFont( new Font( "Menlo", Font.PLAIN, 8 ))
+         case _ => println( "Ooops, no scrollpane" )
+      }
       val printStream = new PrintStream( res.outputStream )
       System.setErr( printStream )
       System.setOut( printStream )
@@ -147,14 +150,14 @@ object InterPlay {
       f.setVisible( true )
       support.nuages = f
 
-//      Actor.actor {
-//         ProcTxn.atomic { implicit tx =>
-//            SemiNuages.init( s )
+      Actor.actor {
+         ProcTxn.atomic { implicit tx =>
+            SoundProcesses.init( s )
+         }
+//         if( START_META ) ProcTxn.atomic { implicit tx =>
+//            SemiNuages.meta.init
 //         }
-////         if( START_META ) ProcTxn.atomic { implicit tx =>
-////            SemiNuages.meta.init
-////         }
-//      }
+      }
    }
 
    def quit { System.exit( 0 )}
