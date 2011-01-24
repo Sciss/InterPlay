@@ -1,3 +1,31 @@
+/*
+ *  InterPlay.scala
+ *  (InterPlay)
+ *
+ *  Copyright (c) 2011 Hanns Holger Rutz. All rights reserved.
+ *
+ *  This software is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU General Public License
+ *  as published by the Free Software Foundation; either
+ *  version 2, june 1991 of the License, or (at your option) any later version.
+ *
+ *  This software is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ *  General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public
+ *  License (gpl.txt) along with this software; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
+ *
+ *  For further information, please contact Hanns Holger Rutz at
+ *  contact@sciss.de
+ *
+ *
+ *  Changelog:
+ */
+
 package de.sciss.interplay
 
 import de.sciss.synth.swing.{NodeTreePanel, ServerStatusPanel}
@@ -6,7 +34,7 @@ import de.sciss.synth.proc.{ProcDemiurg, ProcTxn}
 import de.sciss.synth.{ServerOptionsBuilder, ServerConnection, AudioBus, Server}
 import de.sciss.nuages.{NuagesConfig, NuagesFrame}
 import collection.immutable.{IndexedSeq => IIdxSeq}
-import java.awt.{Font, GraphicsEnvironment, EventQueue}
+import java.awt.{BorderLayout, Font, GraphicsEnvironment, EventQueue}
 import de.sciss.scalainterpreter.LogPane
 import javax.swing.{Box, JScrollPane, WindowConstants, JFrame}
 import de.sciss.synth.osc.OSCResponder
@@ -187,13 +215,20 @@ object InterPlay {
       masterBus      = f.panel.masterBus.get // XXX not so elegant
       f.panel.display.setHighQuality( NUAGES_ANTIALIAS )
       val y0 = SCREEN_BOUNDS.y + 22
-      f.setBounds( SCREEN_BOUNDS.x, y0, maxX - SCREEN_BOUNDS.x, maxY - y0 )
+      val y1 = y0 + 96
+      f.setBounds( SCREEN_BOUNDS.x, y1, maxX - SCREEN_BOUNDS.x, maxY - y1 )
       f.setUndecorated( true )
       f.setVisible( true )
       support.nuages = f
 
-val anaView = new AnalysisView( SoundProcesses.anaClientBuf.duplicate, SoundProcesses.anaChans, 640, 128 )
-anaView.makeWindow
+      val anaView = new AnalysisView( SoundProcesses.anaClientBuf, 640, 96 )
+      val anaWin  = new JFrame()
+      anaWin.setUndecorated( true )
+      anaWin.setResizable( false )
+      anaWin.getContentPane().add( anaView, BorderLayout.CENTER )
+      anaWin.setBounds( SCREEN_BOUNDS.x, y0, maxX - SCREEN_BOUNDS.x, y1 - y0 )
+      anaWin.setVisible( true )
+//anaView.makeWindow
 
 //      Actor.actor {
          ProcTxn.atomic { implicit tx =>

@@ -11,7 +11,7 @@ class InterPlayProject( info: ProjectInfo ) extends ProguardProject( info ) {
 //   val scalaFreesoundSwing = "de.sciss" %% "scalafreesoundswing" % "0.11"
    val soundProcesses      = "de.sciss" %% "soundprocesses" % "0.22"  // XXX tmp
 //   val tabletWrapper       = "tabletwrapper" % "tabletwrapper" % "0.12" from "http://github.com/downloads/Sciss/JNITablet/tabletwrapper-0.12.jar"
-//   val fscapeJobs          = "de.sciss" %% "fscapejobs" % "0.10"
+   val fscapeJobs          = "de.sciss" %% "fscapejobs" % "0.11"
 
 //   val configgy            = "net.lag" % "configgy" % "3.0.0-SNAPSHOT"
 
