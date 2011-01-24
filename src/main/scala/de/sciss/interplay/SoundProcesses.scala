@@ -167,7 +167,7 @@ object SoundProcesses {
             val speed   = pspeed.ar
             val phase   = LFSaw.ar( speed * BufDur.ir( liveBuf.id ).reciprocal, ipos * 2 - 1 ).madd( 0.5, 0.5 )
             val frame   = phase * BufFrames.ir( liveBuf.id )
-            val sig     = BufRd.ar( liveBuf.numChannels, liveBuf.id, frame, interp = speed !== 1 )
+            val sig     = BufRd.ar( liveBuf.numChannels, liveBuf.id, frame, interp = 2 ) // (speed !== 1) + 1
             val me      = Proc.local
             1.react( phase ) { data =>
                val ipos = data.head
@@ -178,35 +178,34 @@ object SoundProcesses {
          }
       }
 
-//filter( "onsets" ) {
-//    val pthresh = pControl( "thresh", ParamSpec( 0, 1 ), 0.2 )
-//    val pdecay  = pControl( "decay", ParamSpec( 0.1, 10, ExpWarp ), 1 )
-//    graph { in =>
-//       val on = Onsets.kr( FFT( bufEmpty( 512 ).id, Mix( in )), pthresh.kr )
-//       Decay.ar( Trig.ar( on, SampleDur.ir ), pdecay.kr )
-//    }
-//}
-
-//      gen( "live-lp" ) {
-//         val ppos    = pScalar( "pos", ParamSpec( 0, 1 ), 0 )
-//         val ppos    = pScalar( "dur", ParamSpec( 0, 1 ), 0 )
-//         val pspeed  = pAudio( "speed", ParamSpec( 1.0/8, 8, ExpWarp ), 1 )
-//         graph {
-//            val ipos    = ppos.ir
-//            val phase   = (LFSaw.ar( BufDur.ir( liveBuf.id ).reciprocal, 1 ).madd( 0.5, 0.5 ) + ipos) % 1.0
-//            val speed   = pspeed.ar
-//            val frame   = phase * BufFrames.ir( liveBuf.id )
-//            val sig     = BufRd.ar( liveBuf.numChannels, liveBuf.id, frame, interp = speed !== 1 )
-//            val me      = Proc.local
-//            phase.react( 1 ) { data => ProxTxn.spawnAtomic { implicit tx => me.control( "pos" ).v = data.head }}
-//            sig
-//         }
-//      }
+      gen( "live-lp" ) {
+         val ppos    = pAudio( "pos", ParamSpec( 0, 1 ), 0 )
+         val pdur    = pAudio( "dur", ParamSpec( 0.06, 60, ExpWarp ), 1 )
+         val pspeed  = pAudio( "speed", ParamSpec( 1.0/8, 8, ExpWarp ), 1 )
+         graph {
+            val speed      = pspeed.ar
+            val dur        = pdur.ar
+            val freq       = speed / dur
+            val startFrame = ppos.ar * BufFrames.ir( liveBuf.id )
+            val stopFrame  = startFrame + dur * SampleRate.ir
+            val frame      = LFSaw.ar( freq, -1 ).linlin( -1, 1, startFrame, stopFrame ) % BufFrames.ir( liveBuf.id )
+            val amp        = (frame - startFrame).min( stopFrame - frame ).min( 48 ) / 48
+            val sig        = BufRd.ar( liveBuf.numChannels, liveBuf.id, frame, interp = 2 )
+            sig * amp
+         }
+      }
 
       // -------------- FILTERS --------------
 
       def mix( in: GE, flt: GE, mix: ProcParamAudio ) : GE = LinXFade2.ar( in, flt, mix.ar * 2 - 1 )
       def pMix = pAudio( "mix", ParamSpec( 0, 1 ), 1 )
+
+
+      filter( "reso" ) {
+          val pfreq = pAudio( "freq", ParamSpec( 20, 20000, ExpWarp ), 300 )
+          val pq    = pAudio( "q",    ParamSpec( 1, 0.01, ExpWarp ), 1 )
+          graph { in => Resonz.ar( in, pfreq.ar, pq.ar )}
+      }
 
       filter( "delay" ) {
          val ptime   = pAudio( "time", ParamSpec( 0.3,  30.0, ExpWarp ), 10 )
@@ -567,56 +566,71 @@ object SoundProcesses {
          }
 
          diff( "O-all" + suff ) {
-             val pamp  = pAudio( "amp", ParamSpec( 0.01, 10, ExpWarp ), 1 )
-             val pout  = pAudioOut( "out", None )
+            val pamp  = pAudio( "amp", ParamSpec( 0.01, 10, ExpWarp ), 1 )
+            val pout  = pAudioOut( "out", None )
 
-             graph { in =>
-                val sig          = (in * Lag.ar( pamp.ar, 0.1 )).outputs
-                val inChannels   = sig.size
-                val outChannels  = numCh
-                val outSig       = IIdxSeq.tabulate( outChannels )( ch => sig( ch % inChannels ))
-                pout.ar( placeChannels( outSig ))
-             }
+            graph { in =>
+               val sig          = (in * Lag.ar( pamp.ar, 0.1 )).outputs
+               val inChannels   = sig.size
+               val outChannels  = numCh
+               val outSig       = IIdxSeq.tabulate( outChannels )( ch => sig( ch % inChannels ))
+               pout.ar( placeChannels( outSig ))
+            }
+         }
+
+         diff( "O-one" + suff ) {
+            val pamp  = pAudio( "amp", ParamSpec( 0.01, 10, ExpWarp ), 1 )
+            val pidx  = pAudio( "idx", ParamSpec( 0, numCh - 1, LinWarp, 1 ), 0 )
+            val pout  = pAudioOut( "out", None )
+
+            graph { in =>
+               val sig           = (in * Lag.ar( pamp.ar, 0.1 )).outputs
+               val inChannels    = sig.size
+               val outChannels   = numCh
+               val idx           = Lag.ar( pidx.ar, 0.1 )
+               val outSig        = IIdxSeq.tabulate( outChannels )( ch => sig( ch % inChannels ) * (idx === ch) )
+               pout.ar( placeChannels( outSig ))
+            }
          }
       }
 
       val dfPostM = SynthDef( "post-master" ) {
          val sig = In.ar( masterBus.index, masterBus.numChannels )
          // externe recorder
-//         REC_CHANGROUPS.foreach { group =>
-//            val (name, off, numOut) = group
-//            val numIn   = masterBus.numChannels
-//            val sig1: GE = if( numOut == numIn ) {
-//               sig
-//            } else if( numIn == 1 ) {
-//               Vector.fill[ GE ]( numOut )( sig )
-//            } else {
-//               val sigOut  = Array.fill[ GE ]( numOut )( 0.0f )
-//               val sca     = (numOut - 1).toFloat / (numIn - 1)
-//               sig.outputs.zipWithIndex.foreach { tup =>
-//                  val (sigIn, inCh) = tup
-//                  val outCh         = inCh * sca
-//                  val fr            = outCh % 1f
-//                  val outChI        = outCh.toInt
-//                  if( fr == 0f ) {
-//                     sigOut( outChI ) += sigIn
-//                  } else {
-//                     sigOut( outChI )     += sigIn * (1 - fr).sqrt
-//                     sigOut( outChI + 1 ) += sigIn * fr.sqrt
-//                  }
-//               }
-//               Limiter.ar( sigOut.toSeq, (-0.2).dbamp )
-//            }
-//            assert( sig1.numOutputs == numOut )
-//            Out.ar( off, sig1 )
-//         }
+         REC_CHANGROUPS.foreach { group =>
+            val (name, off, numOut) = group
+            val numIn   = masterBus.numChannels
+            val sig1: GE = if( numOut == numIn ) {
+               sig
+            } else if( numIn == 1 ) {
+               Vector.fill[ GE ]( numOut )( sig )
+            } else {
+               val sigOut  = Array.fill[ GE ]( numOut )( 0.0f )
+               val sca     = (numOut - 1).toFloat / (numIn - 1)
+               sig.outputs.zipWithIndex.foreach { tup =>
+                  val (sigIn, inCh) = tup
+                  val outCh         = inCh * sca
+                  val fr            = outCh % 1f
+                  val outChI        = outCh.toInt
+                  if( fr == 0f ) {
+                     sigOut( outChI ) += sigIn
+                  } else {
+                     sigOut( outChI )     += sigIn * (1 - fr).sqrt
+                     sigOut( outChI + 1 ) += sigIn * fr.sqrt
+                  }
+               }
+               Limiter.ar( sigOut.toSeq, (-0.2).dbamp )
+            }
+            assert( sig1.numOutputs == numOut )
+            Out.ar( off, sig1 )
+         }
          // master + people meters
          val meterTr    = Impulse.kr( 20 )
          //val trigA    = Trig1.ar( meterTr, SampleDur.ir )
          val (peoplePeak, peopleRMS) = {
             val res = MIC_AND_PEOPLE.map { group =>
                val (_, off, numIn)  = group
-println( "OFF = " + off + ", numIn = " + numIn )
+//println( "OFF = " + off + ", numIn = " + numIn )
                val pSig       = In.ar( NumOutputBuses.ir + off, numIn )
                val peak       = Peak.kr( pSig, meterTr ).outputs
                val peakM      = peak.tail.foldLeft[ GE ]( peak.head )( _ max _ ) \ 0
