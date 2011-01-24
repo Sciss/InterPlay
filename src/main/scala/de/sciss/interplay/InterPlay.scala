@@ -6,12 +6,12 @@ import de.sciss.synth.proc.{ProcDemiurg, ProcTxn}
 import de.sciss.synth.{ServerOptionsBuilder, ServerConnection, AudioBus, Server}
 import de.sciss.nuages.{NuagesConfig, NuagesFrame}
 import collection.immutable.{IndexedSeq => IIdxSeq}
-import java.io.PrintStream
 import java.awt.{Font, GraphicsEnvironment, EventQueue}
 import de.sciss.scalainterpreter.LogPane
 import javax.swing.{Box, JScrollPane, WindowConstants, JFrame}
 import de.sciss.synth.osc.OSCResponder
 import de.sciss.osc.OSCMessage
+import java.io.{File, PrintStream}
 
 object InterPlay {
    var s: Server  = null
@@ -34,6 +34,9 @@ object InterPlay {
    val MIC_OFFSET          = 0
    val MIC_NUMCHANNELS     = 1
    lazy val MIC_AND_PEOPLE = ("Mic", MIC_OFFSET, MIC_NUMCHANNELS) :: PEOPLE_CHANGROUPS
+
+   val BASE_PATH           = new File( new File( System.getProperty( "user.home" ), "Desktop" ), "InterPlay" )
+   val REC_PATH            = new File( BASE_PATH, "rec" )
 
 //   println( "MIC_AND_PEOPLE = " + MIC_AND_PEOPLE )
 

@@ -2,11 +2,15 @@ package de.sciss.interplay
 
 import de.sciss.synth._
 import collection.immutable.{IndexedSeq => IIdxSeq}
+import io.{AudioFile, AudioFileType}
 import proc._
 import ugen._
 import DSL._
 import InterPlay._
 import java.nio.ByteBuffer
+import java.io.{File, FileFilter}
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 object SoundProcesses {
    val diskBufSize   = 32768
@@ -41,15 +45,38 @@ object SoundProcesses {
 
       // -------------- GENS --------------
 
+
+
       gen( "live" ) {
-         val pmode = pScalar( "mode", ParamSpec( 0, 1, LinWarp, 1 ), 0 )
+         val pmode      = pScalar( "mode", ParamSpec( 0, 1, LinWarp, 1 ), 0 )
+         val ppos       = pScalar( "pos", ParamSpec( 0, 1 ), 0 )
+         val cntUpd     = math.max( 1, (maxLiveAnaFr / maxLiveDur).toInt )
+         val livePath   = new File( REC_PATH, "live" )
+         var playPath   = livePath.listFiles( new FileFilter {
+            def accept( p: File ) = {
+               try {
+                  val spec = AudioFile.readSpec( p )
+                  (spec.numFrames > 0L) && (spec.numChannels == MIC_NUMCHANNELS)
+               } catch {
+                  case _ => false
+               }
+            }
+         }).toList.sortBy( _.getName ).lastOption
+         val df = new SimpleDateFormat( "'live'yyMMdd'_'HHmmss'.irc'", Locale.US )
+
          graph {
             val in: GE  = if( pmode.v == 0 ) {
-               In.ar( NumOutputBuses.ir + MIC_OFFSET, MIC_NUMCHANNELS )
+               val res     = In.ar( NumOutputBuses.ir + MIC_OFFSET, MIC_NUMCHANNELS )
+//               val recPath = File.createTempFile( "live", ".irc", livePath )
+               val recPath = new File( livePath, df.format( new java.util.Date() ))
+               playPath    = Some( recPath )
+               DiskOut.ar( bufRecord( recPath.getAbsolutePath, MIC_NUMCHANNELS, AudioFileType.IRCAM ).id, res )
+               res
             } else {
-               val path = "/Users/hhrutz/Desktop/InterPlay/rec/StringsDirect/StringsDirect1to4.aif"
-               val disk = DiskIn.ar( 2, bufCue( path ).id, loop = 1 )
-               IIdxSeq.tabulate( MIC_NUMCHANNELS )( i => disk \ (i % disk.numOutputs) )
+               val path = playPath.getOrElse( error( "No live recordings" )) // /Users/hhrutz/Desktop/InterPlay/rec/StringsDirect/StringsDirect1to4.aif" )
+               val disk = DiskIn.ar( MIC_NUMCHANNELS, bufCue( path.getAbsolutePath ).id, loop = 1 )
+//               IIdxSeq.tabulate( MIC_NUMCHANNELS )( i => disk \ (i % disk.numOutputs) )
+               disk
             }
             val phase   = DelTapWr.ar( liveBuf.id, in )
             Out.ar( liveBufPhaseBus.index, phase )
@@ -67,8 +94,14 @@ object SoundProcesses {
 //println( "position " + (cnt * anaChans) + " ; floats.size " + floats.size )
                   anaClientBuf.position( cnt * anaChans )
                   anaClientBuf.put( floats )
+                  if( cnt % cntUpd == 0 ) ProcTxn.atomic { implicit tx =>
+                     me.control( "pos" ).v = cnt.toDouble / maxLiveAnaFr
+                  }
                } else {
-                  ProcTxn.atomic { implicit tx => me.stop }
+                  ProcTxn.atomic { implicit tx =>
+                     me.stop
+                     me.control( "pos" ).v = 1.0
+                  }
                }
             }
 
