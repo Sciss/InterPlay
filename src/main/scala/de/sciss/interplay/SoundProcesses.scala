@@ -29,7 +29,7 @@
 package de.sciss.interplay
 
 import de.sciss.synth._
-import collection.immutable.{IndexedSeq => IIdxSeq}
+import collection.immutable.{IndexedSeq => IIdxSeq, SortedSet => ISortedSet}
 import io.{AudioFile, AudioFileType}
 import proc._
 import ugen._
@@ -67,6 +67,7 @@ object SoundProcesses {
    var synPostM: Synth = _
 //   val anaClientBuf    = ByteBuffer.allocateDirect( maxLiveAnaFr * anaChans * 4 ).asFloatBuffer
    val anaClientBuf    = new AnalysisBuffer( maxLiveAnaFr, anaChans ) // .asFloatBuffer
+   val anaMarkers      = new AnalysisMarkers // ISortedSet.empty[ Int ]
 
    def init( s: Server )( implicit tx: ProcTxn ) {
       liveBuf           = Buffer.alloc( s, maxLiveFrames, MIC_NUMCHANNELS )
@@ -79,6 +80,7 @@ object SoundProcesses {
       gen( "live" ) {
          val pmode      = pScalar( "mode", ParamSpec( 0, 1, LinWarp, 1 ), 0 )
          val ppos       = pScalar( "pos", ParamSpec( 0, 1 ), 0 )
+         val pthresh    = pControl( "thresh", ParamSpec( 0, 1 ), 0.2 )
          val cntUpd     = math.max( 1, (maxLiveAnaFr / maxLiveDur).toInt )
          val livePath   = new File( REC_PATH, "live" )
          var playPath   = livePath.listFiles( new FileFilter {
@@ -111,19 +113,22 @@ object SoundProcesses {
             Out.ar( liveBufPhaseBus.index, phase )
             val chain   = FFT( bufEmpty( anaFFTSize ).id, in, anaFFTOver.reciprocal )
             val coeffs  = MFCC.kr( chain, numMelCoeffs )
+            val onsets  = Onsets.kr( chain, pthresh.kr )
             val fftTrig = Impulse.kr( SampleRate.ir / anaWinStep )
             val fftCnt  = PulseCount.kr( fftTrig )
 
 //            SendReply.kr( fftTrig, coeffs, "/ana" )
             val me = Proc.local
-            fftTrig.react( fftCnt +: coeffs.outputs ) { data =>
-               val floats: Array[ Float ] = data.drop( 1 ).map( _.toFloat )( collection.breakOut )
+            fftTrig.react( fftCnt +: onsets +: coeffs.outputs ) { data =>
+               val floats: Array[ Float ] = data.drop( 2 ).map( _.toFloat )( collection.breakOut )
                val cnt     = data( 0 ).toInt - 1
+               val onset   = data( 1 ) > 0
                if( cnt < maxLiveAnaFr ) {
 //println( "position " + (cnt * anaChans) + " ; floats.size " + floats.size )
 //                  anaClientBuf.position( cnt * anaChans )
 //                  anaClientBuf.put( floats )
                   anaClientBuf.setFrame( cnt, floats )
+                  if( onset ) anaMarkers.add( cnt )
                   if( cnt % cntUpd == 0 ) ProcTxn.atomic { implicit tx =>
                      me.control( "pos" ).v = cnt.toDouble / maxLiveAnaFr
                   }

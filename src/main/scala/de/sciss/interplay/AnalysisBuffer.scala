@@ -54,7 +54,7 @@ class AnalysisBuffer( val numFrames: Int, val numChannels: Int ) extends Model {
          }
          res
       }
-      this.dispatch( FrameUpdated( idx, lastFrame ))
+      dispatch( FrameUpdated( idx, lastFrame ))
    }
 
    def framesWritten : Int = buf.synchronized( framesWrittenVar )

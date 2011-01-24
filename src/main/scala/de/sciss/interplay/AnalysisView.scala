@@ -32,17 +32,19 @@ import java.nio.FloatBuffer
 import javax.swing.{JFrame, JComponent}
 import java.awt.image.BufferedImage
 import de.sciss.sonogram.IntensityColorScheme
-import java.awt.{BorderLayout, Insets, Dimension, Graphics}
 import java.awt.event.{MouseEvent, MouseAdapter}
 import de.sciss.synth.Model
 import de.sciss.gui.{Collapse, DynamicAncestorAdapter}
+import java.awt.{BorderLayout, Graphics, Color, Insets, Dimension}
 
-class AnalysisView( buf: AnalysisBuffer, width: Int, height: Int ) extends JComponent {
+class AnalysisView( buf: AnalysisBuffer, marks: AnalysisMarkers, width: Int, height: Int )
+extends JComponent {
    view =>
 
    private val numFrames   = buf.numFrames
    private val downSmp     = math.max( 1, numFrames / width )
    private val imgWidth    = (numFrames + downSmp - 1) / downSmp
+   private val mrkIdx      = buf.numChannels
    private var img: BufferedImage = null // = new BufferedImage( nWidth, buf.numChannels, BufferedImage.TYPE_INT_RGB )
    private val ins         = new Insets( 0, 0, 0, 0 )
    private val sum         = buf.emptyFrame
@@ -59,28 +61,61 @@ class AnalysisView( buf: AnalysisBuffer, width: Int, height: Int ) extends JComp
 //      }
 //   })
 
-   private val clpse = Collapse[ (Int, Int) ]( 1.0 ) { (a, b) => (math.min( a._1, b._1 ), math.max( a._2, b._2 ))} { res =>
+   private val clpseBuf = Collapse[ (Int, Int) ]( 1.0 ) { (a, b) => (math.min( a._1, b._1 ), math.max( a._2, b._2 ))} { res =>
 //      println( "UPDATE " + res )
       rebuildImage( res._1, res._2 )
    }
 
+   private val clpseMrk = Collapse[ List[ Int ]]( 0.1 )( _ ++ _ )( addMarkers( _ ))
+
    private val bufListener: Model.Listener = {
-      case AnalysisBuffer.FrameUpdated( idx, isLast ) => clpse( (idx, idx + 1) )
+      case AnalysisBuffer.FrameUpdated( idx, isLast ) => clpseBuf( (idx, idx + 1) )
+   }
+
+   private val marksListener: Model.Listener = {
+      case AnalysisMarkers.Added( idx ) => clpseMrk( idx :: Nil )
    }
 
    DynamicAncestorAdapter( view ) {
-      img = new BufferedImage( imgWidth, buf.numChannels, BufferedImage.TYPE_INT_RGB )
+      img = new BufferedImage( imgWidth, buf.numChannels + 1, BufferedImage.TYPE_INT_RGB )
       rebuildImage( 0, buf.framesWritten )
       buf.addListener( bufListener )
+      marks.addListener( marksListener )
    } {
-      clpse.cancel()
+      clpseBuf.cancel()
+      clpseMrk.cancel()
       buf.removeListener( bufListener )
+      marks.removeListener( marksListener )
       img.flush
       img = null
    }
 
+   private def addMarkers( marks: List[ Int ]) {
+      getInsets( ins )
+      val w    = getWidth  - (ins.left + ins.right)
+      val h    = getHeight - (ins.top  + ins.bottom)
+
+      var x0 = w
+      var x1 = 0
+      marks.foreach { m =>
+         val x = m / downSmp
+         img.setRGB( x, mrkIdx, 0xFFFFFF )
+         if( x >= x1 ) x1 = x + 1
+         if( x < x0 )  x0 = x
+      }
+      if( x0 < x1 ) {
+         val xi0 = x0 * w / imgWidth
+         val xi1 = (x1 * w + imgWidth - 1) / imgWidth
+         repaint( 0L, xi0 + ins.left, ins.top, xi1 - xi0, h )
+      }
+   }
+
    private def rebuildImage( startFrame: Int, stopFrame: Int ) {
       if( img == null ) return
+
+      getInsets( ins )
+      val w    = getWidth  - (ins.left + ins.right)
+      val h    = getHeight - (ins.top  + ins.bottom)
 
       val x0 = startFrame / downSmp
       val x1 = (stopFrame + downSmp - 1) / downSmp
@@ -98,9 +133,6 @@ class AnalysisView( buf: AnalysisBuffer, width: Int, height: Int ) extends JComp
          y += 1 }
       x += 1 }
 
-      getInsets( ins )
-      val w    = getWidth  - (ins.left + ins.right)
-      val h    = getHeight - (ins.top  + ins.bottom)
       val xi0 = x0 * w / imgWidth
       val xi1 = (x1 * w + imgWidth - 1) / imgWidth
 

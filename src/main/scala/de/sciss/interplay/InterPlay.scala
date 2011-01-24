@@ -40,6 +40,7 @@ import javax.swing.{Box, JScrollPane, WindowConstants, JFrame}
 import de.sciss.synth.osc.OSCResponder
 import de.sciss.osc.OSCMessage
 import java.io.{File, PrintStream}
+import SoundProcesses._
 
 object InterPlay {
    var s: Server  = null
@@ -188,7 +189,7 @@ object InterPlay {
                maxX - SCREEN_BOUNDS.x + 1, ctrlF.getHeight() )
             ctrlF.setVisible( true )
 
-            val synPostMID = SoundProcesses.synPostM.id
+            val synPostMID = synPostM.id
             OSCResponder.add({
                case OSCMessage( "/meters", `synPostMID`, 0, values @ _* ) =>
                   EventQueue.invokeLater( new Runnable { def run = ctrlP.meterUpdate( values.map( _.asInstanceOf[ Float ]).toArray )})
@@ -221,7 +222,7 @@ object InterPlay {
       f.setVisible( true )
       support.nuages = f
 
-      val anaView = new AnalysisView( SoundProcesses.anaClientBuf, 640, 96 )
+      val anaView = new AnalysisView( anaClientBuf, anaMarkers, math.min( anaClientBuf.numFrames, maxX - SCREEN_BOUNDS.x ), 96 )
       val anaWin  = new JFrame()
       anaWin.setUndecorated( true )
       anaWin.setResizable( false )
