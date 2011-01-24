@@ -60,7 +60,7 @@ object SoundProcesses {
    val maxLiveFrames    = maxLiveAnaFr * anaWinStep
    val maxLiveDur       = maxLiveFrames / 44100.0 // 10.0 * 60
    var liveBuf: Buffer  = _
-   var liveBufPhaseBus: AudioBus = _
+//   var liveBufPhaseBus: AudioBus = _
 //   val micChanIndex     = 0
 //   val micNumChans      = 1
 
@@ -71,7 +71,7 @@ object SoundProcesses {
 
    def init( s: Server )( implicit tx: ProcTxn ) {
       liveBuf           = Buffer.alloc( s, maxLiveFrames, MIC_NUMCHANNELS )
-      liveBufPhaseBus   = Bus.audio( s, 1 )
+//      liveBufPhaseBus   = Bus.audio( s, 1 )
 
       // -------------- GENS --------------
 
@@ -109,8 +109,9 @@ object SoundProcesses {
 //               IIdxSeq.tabulate( MIC_NUMCHANNELS )( i => disk \ (i % disk.numOutputs) )
                disk
             }
-            val phase   = DelTapWr.ar( liveBuf.id, in )
-            Out.ar( liveBufPhaseBus.index, phase )
+//            val phase   = DelTapWr.ar( liveBuf.id, in )
+//            Out.ar( liveBufPhaseBus.index, phase )
+            RecordBuf.ar( in, liveBuf.id, loop = 0, doneAction = pauseSelf )
             val chain   = FFT( bufEmpty( anaFFTSize ).id, in, anaFFTOver.reciprocal )
             val coeffs  = MFCC.kr( chain, numMelCoeffs )
             val onsets  = Onsets.kr( chain, pthresh.kr )
@@ -141,19 +142,39 @@ object SoundProcesses {
             }
 
 //            PauseSelf.kr( fftCnt === maxLiveAnaFr )
-            PauseSelf.kr( fftCnt > maxLiveAnaFr )
+//            PauseSelf.kr( fftCnt > maxLiveAnaFr )
 
             in
          }
       }
 
+//      gen( "live-dly" ) {
+////         val pdly  = pAudio( "dly", ParamSpec( 0.0, maxLiveDur ), 0.0 )
+//         val pdly  = pAudio( "dly", ParamSpec( maxLiveDur / 1000, maxLiveDur, ExpWarp ), maxLiveDur / 1000 )
+//         graph {
+//            val phase   = InFeedback.ar( liveBufPhaseBus.index )
+//            val in      = DelTapRd.ar( liveBuf.id, phase, pdly.ar, 4 )
+//            in
+//         }
+//      }
+
       gen( "live-dly" ) {
 //         val pdly  = pAudio( "dly", ParamSpec( 0.0, maxLiveDur ), 0.0 )
-         val pdly  = pAudio( "dly", ParamSpec( maxLiveDur / 1000, maxLiveDur, ExpWarp ), maxLiveDur / 1000 )
+         val ppos    = pScalar( "pos", ParamSpec( 0, 1 ), 0 )
+         val pspeed  = pAudio( "speed", ParamSpec( 1.0/8, 8, ExpWarp ), 1 )
          graph {
-            val phase   = InFeedback.ar( liveBufPhaseBus.index )
-            val in      = DelTapRd.ar( liveBuf.id, phase, pdly.ar, 4 )
-            in
+            val ipos    = ppos.ir
+            val speed   = pspeed.ar
+            val phase   = LFSaw.ar( speed * BufDur.ir( liveBuf.id ).reciprocal, ipos * 2 - 1 ).madd( 0.5, 0.5 )
+            val frame   = phase * BufFrames.ir( liveBuf.id )
+            val sig     = BufRd.ar( liveBuf.numChannels, liveBuf.id, frame, interp = speed !== 1 )
+            val me      = Proc.local
+            1.react( phase ) { data =>
+               val ipos = data.head
+//               println( "ipos = " + ipos )
+               ProcTxn.spawnAtomic { implicit tx => me.control( "pos" ).v = ipos }
+            }
+            sig
          }
       }
 
@@ -166,6 +187,21 @@ object SoundProcesses {
 //    }
 //}
 
+//      gen( "live-lp" ) {
+//         val ppos    = pScalar( "pos", ParamSpec( 0, 1 ), 0 )
+//         val ppos    = pScalar( "dur", ParamSpec( 0, 1 ), 0 )
+//         val pspeed  = pAudio( "speed", ParamSpec( 1.0/8, 8, ExpWarp ), 1 )
+//         graph {
+//            val ipos    = ppos.ir
+//            val phase   = (LFSaw.ar( BufDur.ir( liveBuf.id ).reciprocal, 1 ).madd( 0.5, 0.5 ) + ipos) % 1.0
+//            val speed   = pspeed.ar
+//            val frame   = phase * BufFrames.ir( liveBuf.id )
+//            val sig     = BufRd.ar( liveBuf.numChannels, liveBuf.id, frame, interp = speed !== 1 )
+//            val me      = Proc.local
+//            phase.react( 1 ) { data => ProxTxn.spawnAtomic { implicit tx => me.control( "pos" ).v = data.head }}
+//            sig
+//         }
+//      }
 
       // -------------- FILTERS --------------
 
