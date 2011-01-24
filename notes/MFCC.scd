@@ -1,4 +1,4 @@
-
+s.boot
 //assumes hop of half fftsize, fine
 b = Buffer.alloc(s,1024,1); //for sampling rates 44100 and 48000
 //b = Buffer.alloc(s,2048,1); //for sampling rates 88200 and 96000
@@ -48,7 +48,31 @@ Out.ar(0,Pan2.ar(in));
 )
 // d.close; d.free
 
+x.free
+d.close; d.free
 
+// ---- noise
+(
+x= {
+var in, fft, array;
+
+//in= PlayBuf.ar(1,d,BufRateScale.kr(d),1,0,1);
+
+in = Pulse.ar( 441, mul: 0.1 );
+
+fft = FFT(b, in);
+
+array=MFCC.kr(fft); 
+
+array.size.postln; 
+
+Out.kr(0,array); 
+
+Out.ar(0,Pan2.ar(in)); 
+}.play
+)
+x.free
+	
 c= Bus.new('control', 0, 13); 
 
 //poll coefficients

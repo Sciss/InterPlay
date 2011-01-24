@@ -8,11 +8,11 @@ import java.awt.{EventQueue, Graphics, Color, Font}
 
 class Wallclock extends JLabel {
    private var secs = 0
-   private val timer = new Timer( true )
-   private var running = false
-   private val tt = new TimerTask {
-      def run = EventQueue.invokeLater( new Runnable { def run = tick })
-   }
+   private var timer: Option[ Timer ] = None // = new Timer( true )
+//   private var running = false
+//   private val tt = new TimerTask {
+//      def run = EventQueue.invokeLater( new Runnable { def run = tick })
+//   }
    private val sb = new StringBuilder( 6 )
 
    setBorder( BorderFactory.createCompoundBorder( new RecessedBorder, BorderFactory.createMatteBorder( 0, 4, 0, 4, Color.black )))
@@ -38,15 +38,27 @@ class Wallclock extends JLabel {
    }
 
    def start {
-      if( !running ) {
-         running = true
-         timer.scheduleAtFixedRate( tt, 1000L, 1000L )
+      require( EventQueue.isDispatchThread )
+      if( timer.isEmpty ) {
+         val t = new Timer( true )
+         t.scheduleAtFixedRate( new TimerTask {
+            def run = EventQueue.invokeLater( new Runnable { def run {
+               if( timer == Some( t )) {
+                  secs += 1
+                  updateLabel
+               }
+            }})
+         }, 1000L, 1000L )
+         timer = Some( t )
       }
    }
 
    def stop {
-      running = false
-      timer.cancel()
+      require( EventQueue.isDispatchThread )
+      timer.foreach { t =>
+         t.cancel()
+         timer = None
+      }
    }
 
    def reset {
@@ -55,12 +67,12 @@ class Wallclock extends JLabel {
       updateLabel
    }
 
-   private def tick {
-      if( running ) {
-         secs += 1
-         updateLabel
-      }
-   }
+//   private def tick {
+//      if( running ) {
+//         secs += 1
+//         updateLabel
+//      }
+//   }
 
    override def paintComponent( g: Graphics ) {
       val in = getInsets()

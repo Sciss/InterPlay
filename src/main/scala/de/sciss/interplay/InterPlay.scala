@@ -17,18 +17,56 @@ object InterPlay {
    var s: Server  = null
 //   var gui: GUI   = null
    var booting: ServerConnection = null
-   val options = new ServerOptionsBuilder()
+//   val options = new ServerOptionsBuilder()
    var ntp: Option[ NodeTreePanel ] = None
    var masterBus: AudioBus = null
-   var headphonesBus: AudioBus = null
-   val INTERNAL_AUDIO = true
-   val NUAGES_ANTIALIAS = false
-   val support = new REPLSupport
-//   val MASTER_INDEX = 0
-//   val MASTER_NUMCHANNELS = 2
-   val MASTER_CHANNELS = IIdxSeq( 0, 1 )
-   val HEADPHONES_INDEX = 0
+//   var headphonesBus: AudioBus = null
+   val INTERNAL_AUDIO      = true
+   val NUAGES_ANTIALIAS    = false
+   val MASTER_OFFSET       = 2
+   val MASTER_NUMCHANNELS  = 5
+   val SOLO_OFFSET         = 0
+   val SOLO_NUMCHANNELS    = 2
+
+   val support             = new REPLSupport
+   val PEOPLE_CHANGROUPS   = List.empty[ (String, Int, Int) ]
+   val REC_CHANGROUPS      = List.empty[ (String, Int, Int) ]
+   val MIC_OFFSET          = 0
+   val MIC_NUMCHANNELS     = 1
+   lazy val MIC_AND_PEOPLE = ("Mic", MIC_OFFSET, MIC_NUMCHANNELS) :: PEOPLE_CHANGROUPS
+
+//   println( "MIC_AND_PEOPLE = " + MIC_AND_PEOPLE )
+
+//   val MASTER_CHANNELS = IIdxSeq( 0, 1 )
+//   val HEADPHONES_INDEX = 0
    var config: NuagesConfig = null
+
+   val inDevice         = "MOTU 828mk2"
+   val outDevice        = "MOTU 828mk2"
+
+   lazy val options     = {
+      val o          = new ServerOptionsBuilder()
+      if( inDevice == outDevice ) {
+         if( inDevice != "" ) o.deviceName = Some( inDevice )
+      } else {
+         o.deviceNames = Some( inDevice -> outDevice )
+      }
+
+      val maxInIdx = MIC_AND_PEOPLE.map( g => g._2 + g._3 ).max
+
+      val maxOutIdx = ((MASTER_OFFSET + MASTER_NUMCHANNELS) :: (if( SOLO_OFFSET >= 0 ) SOLO_OFFSET + SOLO_NUMCHANNELS else 0) ::
+         REC_CHANGROUPS.map( g => g._2 + g._3 )).max
+
+      println( "MAX IN " + maxInIdx + " ; MAX OUT " + maxOutIdx )
+
+      o.inputBusChannels   = maxInIdx // 10
+      o.outputBusChannels  = maxOutIdx // 10
+      o.audioBusChannels   = 512
+      o.loadSynthDefs      = false
+      o.memorySize         = 65536
+      o.zeroConf           = false
+      o.build
+   }
 
    lazy val SCREEN_BOUNDS =
          GraphicsEnvironment.getLocalGraphicsEnvironment.getDefaultScreenDevice.getDefaultConfiguration.getBounds
@@ -90,7 +128,7 @@ object InterPlay {
 
 //      sif.setLocation( sspw.getX + sspw.getWidth + 32, sif.getY )
 //      sif.setVisible( true )
-      booting = Server.boot( options = options.build ) {
+      booting = Server.boot( options = options ) {
          case ServerConnection.Preparing( srv ) => {
             ssp.server = Some( srv )
 //            ntp.server = Some( srv )
@@ -104,7 +142,7 @@ object InterPlay {
             initNuages( maxX, maxY )
 
             // freesound
-            val ctrlP = new ControlPanel( 0 )
+            val ctrlP = new ControlPanel()
 //      val cf = ctrlP.makeWindow
             val ctrlF = new JFrame()
             ctrlF.setUndecorated( true )
@@ -119,12 +157,11 @@ object InterPlay {
                maxX - SCREEN_BOUNDS.x + 1, ctrlF.getHeight() )
             ctrlF.setVisible( true )
 
-//            val synPostMID = SMCNuages.synPostM.id
-//            OSCResponder.add({
-//               case OSCMessage( "/meters", `synPostMID`, 0, values @ _* ) =>
-//                  EventQueue.invokeLater( new Runnable { def run = ctrlP.meterUpdate( values.map( _.asInstanceOf[ Float ]).toArray )})
-//            }, s )
-
+            val synPostMID = SoundProcesses.synPostM.id
+            OSCResponder.add({
+               case OSCMessage( "/meters", `synPostMID`, 0, values @ _* ) =>
+                  EventQueue.invokeLater( new Runnable { def run = ctrlP.meterUpdate( values.map( _.asInstanceOf[ Float ]).toArray )})
+            }, s )
          }
       }
       Runtime.getRuntime().addShutdownHook( new Thread { override def run = shutDown })
@@ -138,8 +175,10 @@ object InterPlay {
 //         new AudioBus( s, MASTER_INDEX, MASTER_NUMCHANNELS )
 //      }
 //      val soloBus    = Bus.audio( s, 2 )
-      headphonesBus  = new AudioBus( s, HEADPHONES_INDEX, 2 )
-      config         = NuagesConfig( s, Some( MASTER_CHANNELS ), None, None ) // Some( RECORD_PATH )
+      val masterChans  = (MASTER_OFFSET until (MASTER_OFFSET + MASTER_NUMCHANNELS ))
+//      headphonesBus  = new AudioBus( s, HEADPHONES_INDEX, 2 )
+      val soloBus    = if( (SOLO_OFFSET >= 0) ) Some( (SOLO_OFFSET until (SOLO_OFFSET + SOLO_NUMCHANNELS)) ) else None
+      config         = NuagesConfig( s, Some( masterChans ), soloBus, None, true )
 
       val f          = new NuagesFrame( config )
       masterBus      = f.panel.masterBus.get // XXX not so elegant
@@ -153,10 +192,10 @@ object InterPlay {
 val anaView = new AnalysisView( SoundProcesses.anaClientBuf.duplicate, SoundProcesses.anaChans, 640, 128 )
 anaView.makeWindow
 
-      Actor.actor {
+//      Actor.actor {
          ProcTxn.atomic { implicit tx =>
             SoundProcesses.init( s )
-         }
+//         }
 //         if( START_META ) ProcTxn.atomic { implicit tx =>
 //            SemiNuages.meta.init
 //         }

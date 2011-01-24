@@ -5,16 +5,16 @@ import de.sciss.gui.{PeakMeterPanel, PeakMeter, PeakMeterGroup}
 import InterPlay._
 import de.sciss.scalainterpreter.LogPane
 import java.awt.{Font, Color, BorderLayout}
-import javax.swing.{JLabel, WindowConstants, SwingConstants, Box, JToggleButton, BoxLayout, JFrame, JButton, JPanel}
 import java.io.PrintStream
+import javax.swing._
 
-class ControlPanel( numInputMeters: Int ) extends JPanel {
+class ControlPanel() extends JPanel {
    panel =>
 
    private val masterMeterPanel  = new PeakMeterPanel()
    private val peopleOffset      = masterBus.numChannels << 1
    private val peopleMeterPanel: Option[ PeakMeterPanel ] =
-      if( numInputMeters > 0 ) Some( new PeakMeterPanel() ) else None
+      if( MIC_AND_PEOPLE.nonEmpty ) Some( new PeakMeterPanel() ) else None
 
    private var interpreter : Option[ ScalaInterpreterFrame ] = None
 
@@ -48,8 +48,18 @@ class ControlPanel( numInputMeters: Int ) extends JPanel {
 //      panel.add( m1 )
 //      panel.add( m2 )
 
+      val ggStartClock = new JButton()
       val ggClock = new Wallclock
-ggClock.start
+      ggStartClock.putClientProperty( "JButton.buttonType", "bevel" )
+      ggStartClock.putClientProperty( "JComponent.sizeVariant", "small" )
+      ggStartClock.setFocusable( false )
+      ggStartClock.setAction( new AbstractAction( "\u25B6" ) {
+         def actionPerformed( e: ActionEvent ) {
+            ggClock.reset
+            ggClock.start
+         }
+      })
+      panel.add( ggStartClock )
       panel.add( ggClock )
       panel.add( Box.createHorizontalStrut( 4 ))
 
@@ -65,7 +75,7 @@ ggClock.start
       panel.add( masterMeterPanel )
       peopleMeterPanel.foreach { p =>
          p.setOrientation( SwingConstants.HORIZONTAL )
-         p.setNumChannels( numInputMeters )
+         p.setNumChannels( MIC_AND_PEOPLE.size )
          p.setBorder( true )
          val d = p.getPreferredSize()
          val dn = 30 / numCh
