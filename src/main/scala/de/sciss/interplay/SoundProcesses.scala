@@ -6,40 +6,70 @@ import proc._
 import ugen._
 import DSL._
 import InterPlay._
+import java.nio.ByteBuffer
 
 object SoundProcesses {
-   val MAX_LIVE_DUR  = 10.0 * 60
-   var liveBuf: Buffer = _
+   val diskBufSize   = 32768
+   val anaFFTSize    = 1024
+   val anaFFTOver    = 2
+   val anaWinStep    = anaFFTSize / anaFFTOver
+
+   val maxLiveAnaFr   = {
+      val secs = 10.0 * 60
+      val fr0  = (secs * 44100 + 0.5).toLong
+      val f1   = fr0 - (fr0 % diskBufSize )
+      assert( f1 % anaWinStep == 0 )
+      (f1 / anaWinStep).toInt
+   }
+   val numMelCoeffs     = 13
+   val anaChans         = numMelCoeffs
+   val maxLiveFrames    = maxLiveAnaFr * anaWinStep
+   val maxLiveDur       = maxLiveFrames / 44100.0 // 10.0 * 60
+   var liveBuf: Buffer  = _
    var liveBufPhaseBus: AudioBus = _
-   val MIC_CHANINDEX = 0
-   val MIC_NUMCHANS  = 1
+   val micChanIndex     = 0
+   val micNumChans      = 1
 
    var synPostM: Synth = _
+   val anaClientBuf    = ByteBuffer.allocateDirect( maxLiveAnaFr * anaChans * 4 ).asFloatBuffer
 
    def init( s: Server )( implicit tx: ProcTxn ) {
-      val bufFrames     = ((s.sampleRate * MAX_LIVE_DUR) + 0.5).toInt
-      liveBuf           = Buffer.alloc( s, bufFrames, MIC_NUMCHANS )
+      liveBuf           = Buffer.alloc( s, maxLiveFrames, micNumChans )
       liveBufPhaseBus   = Bus.audio( s, 1 )
+
+//      println( "anaClientBuf.capacity = " + anaClientBuf.capacity )
 
       gen( "live" ) {
          val pmode = pScalar( "mode", ParamSpec( 0, 1, LinWarp, 1 ), 0 )
          graph {
             val in: GE  = if( pmode.v == 0 ) {
-               In.ar( NumOutputBuses.ir + MIC_CHANINDEX, MIC_NUMCHANS )
+               In.ar( NumOutputBuses.ir + micChanIndex, micNumChans )
             } else {
                val path = "/Users/hhrutz/Desktop/InterPlay/rec/StringsDirect/StringsDirect1to4.aif"
                val disk = DiskIn.ar( 2, bufCue( path ).id, loop = 1 )
-               IIdxSeq.tabulate( MIC_NUMCHANS )( i => disk \ (i % disk.numOutputs) )
+               IIdxSeq.tabulate( micNumChans )( i => disk \ (i % disk.numOutputs) )
             }
             val phase   = DelTapWr.ar( liveBuf.id, in )
             Out.ar( liveBufPhaseBus.index, phase )
+            val chain   = FFT( bufEmpty( anaFFTSize ).id, in, anaFFTOver.reciprocal )
+            val coeffs  = MFCC.kr( chain, numMelCoeffs )
+            val fftTrig = Impulse.kr( SampleRate.ir / anaWinStep )
+            val fftCnt  = PulseCount.kr( fftTrig )
+//            SendReply.kr( fftTrig, coeffs, "/ana" )
+            fftTrig.react( fftCnt +: coeffs.outputs ) { data =>
+               val floats: Array[ Float ] = data.drop( 1 ).map( _.toFloat )( collection.breakOut )
+               val cnt     = data( 0 ).toInt - 1
+//println( "position " + (cnt * anaChans) + " ; floats.size " + floats.size )
+               anaClientBuf.position( cnt * anaChans )
+               anaClientBuf.put( floats )
+            }
             in
          }
       }
 
       gen( "live-dly" ) {
-//         val pdly  = pAudio( "dly", ParamSpec( 0.0, MAX_LIVE_DUR ), 0.0 )
-         val pdly  = pAudio( "dly", ParamSpec( MAX_LIVE_DUR / 1000, MAX_LIVE_DUR, ExpWarp ), MAX_LIVE_DUR / 1000 )
+//         val pdly  = pAudio( "dly", ParamSpec( 0.0, maxLiveDur ), 0.0 )
+         val pdly  = pAudio( "dly", ParamSpec( maxLiveDur / 1000, maxLiveDur, ExpWarp ), maxLiveDur / 1000 )
          graph {
             val phase   = InFeedback.ar( liveBufPhaseBus.index )
             val in      = DelTapRd.ar( liveBuf.id, phase, pdly.ar, 4 )

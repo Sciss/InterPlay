@@ -23,3 +23,9 @@ c.close; c.free;
 //
 x.free;
 b.close; b.free
+
+p = "~/Desktop/test2.irc".standardizePath;
+y = SoundFile.openRead( p );
+y.numFrames
+y.numChannels
+y.sampleRate

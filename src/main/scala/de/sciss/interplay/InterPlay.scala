@@ -95,7 +95,7 @@ object InterPlay {
             ssp.server = Some( srv )
 //            ntp.server = Some( srv )
          }
-         case ServerConnection.Running( srv ) => {
+         case ServerConnection.Running( srv ) => guiRun {
             ProcDemiurg.addServer( srv )
             s = srv
             support.s = srv
@@ -149,6 +149,9 @@ object InterPlay {
       f.setUndecorated( true )
       f.setVisible( true )
       support.nuages = f
+
+val anaView = new AnalysisView( SoundProcesses.anaClientBuf.duplicate, SoundProcesses.anaChans, 640, 128 )
+anaView.makeWindow
 
       Actor.actor {
          ProcTxn.atomic { implicit tx =>
