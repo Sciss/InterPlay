@@ -46,7 +46,7 @@ object SoundProcesses {
    val anaFFTOver    = 2
    val anaWinStep    = anaFFTSize / anaFFTOver
 
-   val liveDur = 1.0   // minutes
+   val liveDur = 3.0   // minutes
 
    val maxLiveAnaFr   = {
       val secs = liveDur * 60

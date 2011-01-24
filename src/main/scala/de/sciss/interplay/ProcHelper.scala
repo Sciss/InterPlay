@@ -142,6 +142,21 @@ object ProcHelper {
       }
    }
 
+   def playNewDiff( fadeTime: Double, p: Proc )( implicit tx: ProcTxn ) {
+      lazy val pl: Proc.Listener = new Proc.Listener {
+         def updated( u: Proc.Update ) {
+            if( u.audioBusesConnected.find( b => (b.sourceVertex == p) && (b.out.name == "out") ).isDefined ) {
+                // why we need spawn?? wolkenpumpe doesn't get the new state update otherwise. why?? XXX
+               ProcTxn.spawnAtomic { implicit tx =>
+                  p.removeListener( pl )
+                  if( fadeTime > 0 ) xfade( fadeTime ) { p.play } else p.play
+               }
+            }
+         }
+      }
+      p.addListener( pl )
+   }
+
    def findOutEdge( src: Proc, tgt: Proc )( implicit tx: ProcTxn ) : Option[ ProcEdge ] = {
       src.outEdges find { e =>
          val v = e.targetVertex

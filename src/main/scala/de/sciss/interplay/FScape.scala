@@ -79,10 +79,11 @@ object FScape {
 
       g.control( "dur" ).v = spec.numFrames / spec.sampleRate
       g ~> d
+      ProcHelper.playNewDiff( 0.1, d )
       // another spawn necessary because sucky wolkenpumpe puts
       // the output bus to meter connection later
       // ; XXX TODO : this is still a race condition; we should thus
       // register a model and wait for that bastard to be ready...
-      ProcTxn.spawnAtomic { implicit tx => xfade( 0.1 ) { d.play }}
+//      ProcTxn.spawnAtomic { implicit tx => xfade( 0.1 ) { d.play }}
    }
 }
