@@ -69,6 +69,18 @@ object SoundProcesses {
    val anaClientBuf    = new AnalysisBuffer( maxLiveAnaFr, anaChans ) // .asFloatBuffer
    val anaMarkers      = new AnalysisMarkers // ISortedSet.empty[ Int ]
 
+   val livePath         = new File( REC_PATH, "live" )
+   var playPath         = LIVE_FILE.map( new File( livePath, _ )).orElse( livePath.listFiles( new FileFilter {
+      def accept( p: File ) = {
+         try {
+            val spec = AudioFile.readSpec( p )
+            (spec.numFrames > 0L) && (spec.numChannels == MIC_NUMCHANNELS)
+         } catch {
+            case _ => false
+         }
+      }
+   }).toList.sortBy( _.getName ).lastOption )
+
    def init( s: Server )( implicit tx: ProcTxn ) {
       liveBuf           = Buffer.alloc( s, maxLiveFrames, MIC_NUMCHANNELS )
 //      liveBufPhaseBus   = Bus.audio( s, 1 )
@@ -76,22 +88,22 @@ object SoundProcesses {
       // -------------- GENS --------------
 
       gen( "live" ) {
-         val pmode      = pScalar( "mode", ParamSpec( 0, 1, LinWarp, 1 ), 0 )
+         val pmode      = pScalar( "mode", ParamSpec( 0, 1, LinWarp, 1 ), LIVE_MODE )
          val ppos       = pScalar( "pos", ParamSpec( 0, 1 ), 0 )
          val pthresh    = pControl( "thresh", ParamSpec( 0, 1 ), 0.2 )
          val cntUpd     = math.max( 1, (maxLiveAnaFr / maxLiveDur).toInt )
-         val livePath   = new File( REC_PATH, "live" )
-         var playPath   = livePath.listFiles( new FileFilter {
-            def accept( p: File ) = {
-               try {
-                  val spec = AudioFile.readSpec( p )
-                  (spec.numFrames > 0L) && (spec.numChannels == MIC_NUMCHANNELS)
-               } catch {
-                  case _ => false
-               }
-            }
-         }).toList.sortBy( _.getName ).lastOption
          val df = new SimpleDateFormat( "'live'yyMMdd'_'HHmmss'.irc'", Locale.US )
+
+         val normMins = Array(
+            -0.47940505f, -0.5093739f,  -0.22388703f, -0.14356878f,  -0.057697684f, -0.10735649f,
+            -0.052598f,   -0.060314894f, 0.0f,        -0.043890893f, -0.028240174f, -0.010011315f, -0.07498413f )
+         val normMaxs = Array(
+             1.9825932f,   1.085732f,    0.9282071f,   0.76045084f,   0.79747903f,   0.6042967f,
+             0.631527f,    0.6167193f,   0.6120175f,   0.61750406f,   0.62154025f,   0.5441396f, 0.5421591f )
+         val normAdd = normMins.map( d => -d )
+         val normMul = normMins.zip( normMaxs ).map( tup => 1.0f / (tup._2 - tup._1) )
+
+         assert( normMins.size == numMelCoeffs && normMaxs.size == numMelCoeffs )
 
          graph {
             val in: GE  = if( pmode.v == 0 ) {
@@ -118,8 +130,11 @@ object SoundProcesses {
 
 //            SendReply.kr( fftTrig, coeffs, "/ana" )
             val me = Proc.local
-            fftTrig.react( fftCnt +: onsets +: coeffs.outputs ) { data =>
+            fftTrig.react( fftCnt +: onsets +: coeffs.outputs ) { data => data
                val floats: Array[ Float ] = data.drop( 2 ).map( _.toFloat )( collection.breakOut )
+               var i = 0; while( i < numMelCoeffs ) {
+                  floats( i ) = (floats( i ) + normAdd( i )) * normMul( i )
+               i += 1 }
                val cnt     = data( 0 ).toInt - 1
                val onset   = data( 1 ) > 0
                if( cnt < maxLiveAnaFr ) {

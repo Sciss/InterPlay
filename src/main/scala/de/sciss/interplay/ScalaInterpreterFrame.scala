@@ -61,6 +61,43 @@ extends JFrame( "Scala Interpreter" ) {
 """// Press '""" + KeyEvent.getKeyModifiersText( txnKeyStroke.getModifiers() ) + " + " +
       KeyEvent.getKeyText( txnKeyStroke.getKeyCode() ) + """' to execute transactionally.
 
+Similarity.test( 7777, 43, normalize = true, tpe = Similarity.CC )
+
+val b = SoundProcesses.anaClientBuf
+val f = b.emptyFrame
+val dmin = new Array[Double]( f.size )
+val dmax = new Array[Double]( f.size )
+b.getFrame( 0, f )
+for( y <- 0 until b.numChannels ) {
+    dmin(y)=f(y); dmax(y)=f(y)
+}
+for( x <- 1 until b.numFrames ) {
+    b.getFrame( x, f )
+    for( y <- 0 until b.numChannels ) {
+        dmin(y)=math.min(dmin(y),f(y)); dmax(y)=math.max(dmax(y),f(y))
+    }
+}
+// (0 until b.numChannels).find( i => dmin(i) >= dmax(i))
+
+for( x <- 0 until b.numFrames ) {
+    b.getFrame( x, f )
+    for( y <- 0 until b.numChannels ) {
+        f(y) = ((f(y) - dmin(y)) / (dmax(y) - dmin(y))).toFloat
+    }
+    b.setFrame( x, f )
+}
+
+//
+for( x <- 0 until b.numFrames ) {
+    b.getFrame( x, f )
+    for( y <- 0 until b.numChannels ) {
+        dmin(y)=math.min(dmin(y),f(y)); dmax(y)=math.max(dmax(y),f(y))
+    }
+}
+
+
+//InterPlay.LIVE_FILE = Some( "live110124_190643.irc" )
+SoundProcesses.playPath = Some( new java.io.File( SoundProcesses.livePath, "live110124_190643.irc" ))
 """
 
       pane.initialCode = Some(

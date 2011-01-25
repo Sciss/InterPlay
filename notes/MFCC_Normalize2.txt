@@ -1,0 +1,74 @@
+import java.io.{File, RandomAccessFile}
+
+val s = Server.dummy
+
+val numCoeffs = 13
+
+val df = SynthDef( "nrt" ) {
+   val bufid   = 0 // "buf".ir
+// val diskid  = 1 // "disk".ir
+   val in      = In.ar( NumOutputBuses.ir, 1 ) // DiskIn.ar( 1, diskid )
+   val chain   = FFT( bufid, in, 0.5 )
+   val coeffs  = MFCC.kr( chain, numCoeffs )
+   val rmax    = RunningMax.kr( coeffs, 0 )
+   val rmin    = RunningMin.kr( coeffs, 0 )
+   Out.kr( 0, rmax :: rmin :: Nil )
+}
+
+val df2 = SynthDef( "snap" ) {
+   val coeffs = Latch.ar( K2A.ar( In.kr( 0, numCoeffs * 2 )), Impulse.ar( 0 ))
+   DiskOut.ar( 2, coeffs )
+//   Line.ar( dur = ControlDur.ir, doneAction = freeSelf )
+}
+
+val syn = Synth( s )
+val syn2 = Synth( s )
+
+val buf = new Buffer( s, 0 )
+//val buf2 = new Buffer( s, 1 )
+val buf3 = new Buffer( s, 2 )
+
+val inPath = "/Users/hhrutz/Desktop/InterPlay/rec/live/live110124_all.aif"
+val outPath = "/Users/hhrutz/Desktop/InterPlay/rec/live/live110124_coeffs.aif"
+val spec = AudioFile.readSpec( inPath )
+val dur = spec.numFrames / spec.sampleRate
+val bndls = OSCBundle.secs( 0.0,
+   buf.allocMsg( 1024 ),
+//   buf2.allocReadMsg( inPath, 0, 32768 ),
+   buf3.allocMsg( 32768, numCoeffs * 2 ),
+   buf3.writeMsg( outPath, numFrames = 0, leaveOpen = true ),
+   df.recvMsg,
+   df2.recvMsg,
+   syn.newMsg( df.name, s.rootNode )
+) :: OSCBundle.secs( dur,
+   syn.freeMsg,
+   syn2.newMsg( df2.name, s.rootNode )
+) :: OSCBundle.secs( dur + 32768.0/44100,
+   syn2.freeMsg,
+   buf3.closeMsg
+) :: Nil
+
+val c = de.sciss.osc.OSCPacketCodec.default
+val sz = bndls.map( _.getEncodedSize( c )).max
+
+val f = File.createTempFile( "tmp", ".osc" )
+val raf = new RandomAccessFile( f, "rw" )
+val bb = java.nio.ByteBuffer.allocate( sz )
+val fch = raf.getChannel()
+bndls.foreach { bndl =>
+   bndl.encode( c, bb )
+   bb.flip
+   raf.writeInt( bb.limit )
+   fch.write( bb )
+   bb.clear
+}
+raf.close
+
+// run from cmdline:
+"./scsynth -i 1 -o 1 -N " + f.getAbsolutePath + " " + inPath + " /tmp/killme.aif 44100 AIFF int16"
+
+val afRes = AudioFile.openRead( outPath )
+val fb = afRes.frameBuffer( 1 )
+afRes.readFrames( fb )
+afRes.close
+fb.map(_(0))

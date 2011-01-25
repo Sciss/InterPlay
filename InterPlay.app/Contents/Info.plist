@@ -44,6 +44,7 @@
 		<key>ClassPath</key>
 		<array>
 			<string>$JAVAROOT/ccstm.jar</string>
+			<string>$JAVAROOT/fscapejobs.jar</string>
 			<string>$JAVAROOT/interplay.jar</string>
 			<string>$JAVAROOT/jsyntaxpane.jar</string>
 			<string>$JAVAROOT/prefuse.jar</string>

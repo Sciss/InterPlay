@@ -67,6 +67,9 @@ object InterPlay {
    val BASE_PATH           = new File( new File( System.getProperty( "user.home" ), "Desktop" ), "InterPlay" )
    val REC_PATH            = new File( BASE_PATH, "rec" )
 
+   val LIVE_MODE           = 1
+   var LIVE_FILE           = Some( "live110125_143645.irc" )
+
 //   println( "MIC_AND_PEOPLE = " + MIC_AND_PEOPLE )
 
 //   val MASTER_CHANNELS = IIdxSeq( 0, 1 )
