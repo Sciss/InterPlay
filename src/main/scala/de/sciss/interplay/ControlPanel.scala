@@ -105,10 +105,14 @@ class ControlPanel() extends JPanel {
       panel.add( ggClock )
       space()
       panel.add( tinyToggle( "HP" )( SoundProcesses.headphoneMix( _ )))
-      space()
-      panel.add( tinyButton( "Strings" ) {
-         StringBleachProc.perform
-      })
+      List( ("StringBleach", "string"), ("GlissBleach", "gliss") ) foreach { tup =>
+         val (name, tempName) = tup
+         val proc = SearchBleachProc( name, tempName )
+         space()
+         panel.add( tinyButton( tempName.capitalize ) {
+            proc.perform
+         })
+      }
 
       val numCh = masterBus.numChannels
       masterMeterPanel.setOrientation( SwingConstants.HORIZONTAL )

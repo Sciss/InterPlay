@@ -37,20 +37,23 @@ import de.sciss.fscape.FScapeJobs
 import FScapeJobs._
 import de.sciss.synth.proc.ProcTxn
 
-object StringBleachProc {
-   val name = "StringBleach"
-   val verbose = true
-
+object SearchBleachProc {
    private case class Perform( temp: Template, inPath: File )
+}
+case class SearchBleachProc( name: String, templateName: String ) {
+   import SearchBleachProc._
+
+//   val name = "StringBleach"
+   val verbose = true
 
    private lazy val actor = (new Actor { def act = loop { react {
       case p: Perform => performAct( p )
       case x => println( name + ": Unknown message " + x )
    }}}).start
 
-   def perform { (Similarity.templates.get( "string" ), playPath) match {
+   def perform { (Similarity.templates.get( templateName ), playPath) match {
       case (Some( temp ), Some( path )) => actor ! Perform( temp, path )
-      case (None, _) => println( name + ": No string template" )
+      case (None, _) => println( name + ": No template named '" + templateName + "'" )
       case (_, None) => println( name + ": No play path" )
    }}
 
@@ -106,7 +109,7 @@ object StringBleachProc {
             case true => (new Thread { override def run {
                jobs.foreach { bleach =>
                   ProcTxn.atomic { implicit tx => FScape.inject( new File( bleach.out ), "O-one" )}
-                  Thread.sleep( (Util.exprand( 0.1, 1.0 ) * 1000).toLong )
+                  Thread.sleep( (Util.exprand( 0.2, 1.5 ) * 1000).toLong )
                }
             }}).start
 

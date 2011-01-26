@@ -87,6 +87,8 @@ object Similarity {
 
       val buf           = anaClientBuf
       val numFrames     = buf.framesWritten
+println( "framesWritten: " + numFrames )
+
       val integFrames   = (s.integWin * buf.sampleRate + 0.5).toInt
 //      if( buf.framesWritten < integFrames ) return IIdxSeq.empty
       val srcMat        = s.temp.mat

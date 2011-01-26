@@ -100,6 +100,7 @@ for( x <- 0 until b.numFrames ) {
 SoundProcesses.playPath = Some( new java.io.File( SoundProcesses.livePath, "live110124_190643.irc" ))
 
 Similarity.search( Similarity.templates( "string" ), 0.5f, 30, 1.0f ) { res => println( "SEARCH: " + res )}
+//Similarity.saveTemplate( 11796, 86, "gliss" )
 """
 
       pane.initialCode = Some(
