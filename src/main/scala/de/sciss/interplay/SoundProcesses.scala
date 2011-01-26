@@ -38,6 +38,7 @@ import InterPlay._
 import java.nio.ByteBuffer
 import java.io.{File, FileFilter}
 import java.text.SimpleDateFormat
+import de.sciss.osc.OSCBundle
 import java.util.Locale
 
 object SoundProcesses {
@@ -65,6 +66,8 @@ object SoundProcesses {
 //   val micNumChans      = 1
 
    var synPostM: Synth = _
+   private var hpSynth : Synth = _
+
 //   val anaClientBuf    = ByteBuffer.allocateDirect( maxLiveAnaFr * anaChans * 4 ).asFloatBuffer
    val anaClientBuf    = new AnalysisBuffer( maxLiveAnaFr, anaChans, SAMPLE_RATE / anaWinStep ) // .asFloatBuffer
    val anaMarkers      = new AnalysisMarkers // ISortedSet.empty[ Int ]
@@ -81,13 +84,16 @@ object SoundProcesses {
       }
    }).toList.sortBy( _.getName ).lastOption )
 
+   private var pLive: Proc = _
+   private var pLiveOut: Proc = _
+
    def init( s: Server )( implicit tx: ProcTxn ) {
       liveBuf           = Buffer.alloc( s, maxLiveFrames, MIC_NUMCHANNELS )
 //      liveBufPhaseBus   = Bus.audio( s, 1 )
 
       // -------------- GENS --------------
 
-      gen( "live" ) {
+      val genLive = gen( "live" ) {
          val pmode      = pScalar( "mode", ParamSpec( 0, 1, LinWarp, 1 ), LIVE_MODE )
          val ppos       = pScalar( "pos", ParamSpec( 0, 1 ), 0 )
          val pthresh    = pControl( "thresh", ParamSpec( 0, 1 ), 0.2 )
@@ -587,7 +593,7 @@ object SoundProcesses {
 
       // -------------- DIFFUSIONS --------------
 
-      diff( "O-mute" ) {
+      val diffMute = diff( "O-mute" ) {
           graph { in =>
              val gagaism: GE = 0
              gagaism
@@ -627,10 +633,38 @@ object SoundProcesses {
                val inChannels    = sig.size
                val outChannels   = numCh
                val idx           = Lag.ar( pidx.ar, 0.1 )
-               val outSig        = IIdxSeq.tabulate( outChannels )( ch => sig( ch % inChannels ) * (idx === ch) )
+               val outSig        = IIdxSeq.tabulate( outChannels )( ch =>
+                  sig( ch % inChannels ) * (1 - idx.absdif( ch ).min( 1 )))
                pout.ar( placeChannels( outSig ))
             }
          }
+      }
+
+      def recMix( sig: GE, numOut: Int ) : GE = {
+         val numIn = masterBus.numChannels
+         val sig1: GE = if( numOut == numIn ) {
+            sig
+         } else if( numIn == 1 ) {
+            Vector.fill[ GE ]( numOut )( sig )
+         } else {
+            val sigOut  = Array.fill[ GE ]( numOut )( 0.0f )
+            val sca     = (numOut - 1).toFloat / (numIn - 1)
+            sig.outputs.zipWithIndex.foreach { tup =>
+               val (sigIn, inCh) = tup
+               val outCh         = inCh * sca
+               val fr            = outCh % 1f
+               val outChI        = outCh.toInt
+               if( fr == 0f ) {
+                  sigOut( outChI ) += sigIn
+               } else {
+                  sigOut( outChI )     += sigIn * (1 - fr).sqrt
+                  sigOut( outChI + 1 ) += sigIn * fr.sqrt
+               }
+            }
+            Limiter.ar( sigOut.toSeq, (-0.2).dbamp )
+         }
+         assert( sig1.numOutputs == numOut )
+         sig1
       }
 
       val dfPostM = SynthDef( "post-master" ) {
@@ -638,30 +672,7 @@ object SoundProcesses {
          // externe recorder
          REC_CHANGROUPS.foreach { group =>
             val (name, off, numOut) = group
-            val numIn   = masterBus.numChannels
-            val sig1: GE = if( numOut == numIn ) {
-               sig
-            } else if( numIn == 1 ) {
-               Vector.fill[ GE ]( numOut )( sig )
-            } else {
-               val sigOut  = Array.fill[ GE ]( numOut )( 0.0f )
-               val sca     = (numOut - 1).toFloat / (numIn - 1)
-               sig.outputs.zipWithIndex.foreach { tup =>
-                  val (sigIn, inCh) = tup
-                  val outCh         = inCh * sca
-                  val fr            = outCh % 1f
-                  val outChI        = outCh.toInt
-                  if( fr == 0f ) {
-                     sigOut( outChI ) += sigIn
-                  } else {
-                     sigOut( outChI )     += sigIn * (1 - fr).sqrt
-                     sigOut( outChI + 1 ) += sigIn * fr.sqrt
-                  }
-               }
-               Limiter.ar( sigOut.toSeq, (-0.2).dbamp )
-            }
-            assert( sig1.numOutputs == numOut )
-            Out.ar( off, sig1 )
+            Out.ar( off, recMix( sig, numOut ))
          }
          // master + people meters
          val meterTr    = Impulse.kr( 20 )
@@ -688,5 +699,37 @@ object SoundProcesses {
          SendReply.kr( meterTr,  meterData, "/meters" )
       }
       synPostM = dfPostM.play( s, addAction = addToTail )
+
+      // init live
+      pLive    = genLive.make
+      pLiveOut = diffMute.make
+      pLive ~> pLiveOut
+
+      val dfHP = SynthDef( "hp-mix" ) {
+         val sig = In.ar( masterBus.index, masterBus.numChannels )
+         ReplaceOut.ar( SOLO_OFFSET, recMix( sig, SOLO_NUMCHANNELS ))
+      }
+      hpSynth = Synth( s )
+      dfHP.recv( s, OSCBundle(
+         hpSynth.newMsg( dfHP.name, synPostM, addAction = addAfter ),
+         hpSynth.runMsg( false )
+      ))
+   }
+
+   def startLive {
+      ProcTxn.spawnAtomic { implicit tx =>
+         pLiveOut.play
+         pLive.play
+      }
+   }
+
+   def headphoneMix( onOff: Boolean ) {
+      hpSynth.run( onOff )
+//      require( EventQueue.isDispatcherThread )
+//      hpSynth = (onOff, hpSynth) match {
+//         case (false, Some( synth )) => synth.free; None
+//         case (true, None) => Some( Synth.after( s.defaultGroup, "hp-mix" ))
+//         case (_, x) => x
+//      }
    }
 }

@@ -38,6 +38,9 @@ import collection.immutable.{IndexedSeq => IIdxSeq, Map => IMap}
 import java.io.{FileFilter, File}
 
 object Similarity {
+   var verbose = true
+   val name = "Similarity"
+
    sealed trait Type
 
    // principal component analysis through singular value decomposition
@@ -53,6 +56,7 @@ object Similarity {
 
    private lazy val actor = (new Actor { def act = loop { react {
       case s: Search => s.result( searchAct( s ))
+      case x => println( name + ": Unknown message " + x )
    }}}).start
 
    lazy val templates: IMap[ String, Template ] = TEMPLATE_PATH.listFiles( new FileFilter {
@@ -79,6 +83,8 @@ object Similarity {
    }
 
    private def searchAct( s: Search ) : IIdxSeq[ (Int, Float) ] = {
+      if( verbose ) println( name + ": Start search : " + s )
+
       val buf           = anaClientBuf
       val numFrames     = buf.framesWritten
       val integFrames   = (s.integWin * buf.sampleRate + 0.5).toInt
@@ -110,8 +116,9 @@ object Similarity {
       off += 1 }
 
       addLastHit()
-      res = res.sortWith( (a, b) => a._2 > b._2 )
-      res.take( s.maxNum )
+      res = res.sortWith( (a, b) => a._2 > b._2 ).take( s.maxNum )
+      if( verbose ) println( name + ": Done search : " + res )
+      res
    }
 
    private def testAct( off0: Int, svnFrames0: Int, normalize: Boolean, tpe: Type ) {

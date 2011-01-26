@@ -1,1 +1,3 @@
-"live-lp" : should have a little xfade to prevent clicks
+[OK]	"live-lp" : should have a little xfade to prevent clicks
+
+repeated search seems to not update results if called too early in the buffer generation

@@ -60,7 +60,7 @@ object InterPlay {
 
    val support             = new REPLSupport
    val PEOPLE_CHANGROUPS   = List.empty[ (String, Int, Int) ]
-   val REC_CHANGROUPS      = List.empty[ (String, Int, Int) ]
+   val REC_CHANGROUPS      = List.empty[ (String, Int, Int) ] // List( "hp-mix", 10, 2 )
    val MIC_OFFSET          = 0
    val MIC_NUMCHANNELS     = 1
    lazy val MIC_AND_PEOPLE = ("Mic", MIC_OFFSET, MIC_NUMCHANNELS) :: PEOPLE_CHANGROUPS
@@ -68,6 +68,7 @@ object InterPlay {
    val BASE_PATH           = new File( new File( System.getProperty( "user.home" ), "Desktop" ), "InterPlay" )
    lazy val REC_PATH       = new File( BASE_PATH, "rec" )
    lazy val TEMPLATE_PATH  = new File( BASE_PATH, "templates" )
+   lazy val FSC_PATH       = new File( REC_PATH, "fsc" )
 
    val LIVE_MODE           = 1
    var LIVE_FILE           = Some( "live110125_143645.irc" )

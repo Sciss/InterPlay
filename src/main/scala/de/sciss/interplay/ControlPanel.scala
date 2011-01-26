@@ -76,20 +76,39 @@ class ControlPanel() extends JPanel {
 //      panel.add( m1 )
 //      panel.add( m2 )
 
-      val ggStartClock = new JButton()
+      def dressTiny( b: AbstractButton, label: String )( action: => Unit ) {
+         b.putClientProperty( "JButton.buttonType", "bevel" )
+         b.putClientProperty( "JComponent.sizeVariant", "small" )
+         b.setFocusable( false )
+         b.setAction( new AbstractAction( label ) {
+            def actionPerformed( e: ActionEvent ) { action }
+         })
+      }
+      def tinyButton( label: String )( action: => Unit ) : JButton = {
+         val b = new JButton()
+         dressTiny( b, label )( action )
+         b
+      }
+      def tinyToggle( label: String )( action: Boolean => Unit ) : JToggleButton = {
+         val b = new JToggleButton()
+         dressTiny( b, label )( action( b.isSelected ))
+         b
+      }
+      def space( px: Int = 4 ) { panel.add( Box.createHorizontalStrut( px ))}
+
       val ggClock = new Wallclock
-      ggStartClock.putClientProperty( "JButton.buttonType", "bevel" )
-      ggStartClock.putClientProperty( "JComponent.sizeVariant", "small" )
-      ggStartClock.setFocusable( false )
-      ggStartClock.setAction( new AbstractAction( "\u25B6" ) {
-         def actionPerformed( e: ActionEvent ) {
-            ggClock.reset
-            ggClock.start
-         }
+      panel.add( tinyButton( "\u25B6" ) {
+         ggClock.reset
+         ggClock.start
+         SoundProcesses.startLive
       })
-      panel.add( ggStartClock )
       panel.add( ggClock )
-      panel.add( Box.createHorizontalStrut( 4 ))
+      space()
+      panel.add( tinyToggle( "HP" )( SoundProcesses.headphoneMix( _ )))
+      space()
+      panel.add( tinyButton( "Strings" ) {
+         StringBleachProc.perform
+      })
 
       val numCh = masterBus.numChannels
       masterMeterPanel.setOrientation( SwingConstants.HORIZONTAL )
@@ -116,9 +135,9 @@ class ControlPanel() extends JPanel {
       val d1 = logPane.getPreferredSize()
       d1.height = d.height
       logPane.setPreferredSize( d1 )
-      panel.add( Box.createHorizontalStrut( 8 ))
+      space( 8 )
       panel.add( logPane )
-      panel.add( Box.createHorizontalStrut( 16 ))
+      space( 16 )
 
       val glue = Box.createHorizontalGlue()
 //      glue.setBackground( Color.darkGray )

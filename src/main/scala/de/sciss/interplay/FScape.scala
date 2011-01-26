@@ -33,7 +33,7 @@ import de.sciss.fscape.FScapeJobs
 import InterPlay._
 import SoundProcesses._
 import de.sciss.synth
-import synth.io.AudioFile
+import synth.io.{AudioFile, AudioFileSpec}
 import synth.proc.{ParamSpec, ProcDemiurg, Proc, ProcTxn, DSL}
 
 object FScape {
@@ -46,7 +46,7 @@ object FScape {
    }
 
    def injectWavelet( inPath: File ) {
-      val outPath = File.createTempFile( "fsc", ".aif", new File( REC_PATH, "fsc" ))
+      val outPath = File.createTempFile( "fsc", ".aif", FSC_PATH )
       val doc = Wavelet( inPath.getAbsolutePath, outPath.getAbsolutePath, OutputSpec.aiffInt, Gain.normalized, filter = "daub16", trunc = true )
       fsc.process( "wavelet", doc ) {
          case true   => ProcTxn.spawnAtomic { implicit tx => inject( outPath )}
@@ -56,14 +56,14 @@ object FScape {
 
    private var cnt = 0
 
-   private def inject( outPath: File )( implicit tx: ProcTxn ) {
+   def inject( outPath: File, diffName: String = "O-all" )( implicit tx: ProcTxn ) {
       import DSL._
       import synth._
       import ugen._
 
       cnt += 1
       val spec = AudioFile.readSpec( outPath )
-      val d = ProcDemiurg.factories( tx ).find( _.name == "O-one" ).get.make
+      val d = ProcDemiurg.factories( tx ).find( _.name == diffName ).get.make
       lazy val g: Proc = (gen( "fsc" + cnt ) {
          val pdur = pScalar( "dur", ParamSpec( 1, 240 ), 20 )
          graph {
@@ -77,6 +77,10 @@ object FScape {
          }
       }).make
 
+      if( diffName == "O-one" ) {
+         val dch = d.control( "idx" )
+         dch.v = dch.spec.map( Util.rand( 1.0 ))
+      }
       g.control( "dur" ).v = spec.numFrames / spec.sampleRate
       g ~> d
       ProcHelper.playNewDiff( 0.1, d )
@@ -85,5 +89,11 @@ object FScape {
       // ; XXX TODO : this is still a race condition; we should thus
       // register a model and wait for that bastard to be ready...
 //      ProcTxn.spawnAtomic { implicit tx => xfade( 0.1 ) { d.play }}
+   }
+
+   def createTempAudioFile( src: AudioFile ) : AudioFile = {
+      val f    = File.createTempFile( "tmp", ".aif" )
+      val spec = AudioFileSpec( numChannels = src.numChannels, sampleRate = src.sampleRate )
+      AudioFile.openWrite( f, spec )
    }
 }
