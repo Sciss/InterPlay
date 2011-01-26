@@ -56,6 +56,7 @@ object InterPlay {
    val MASTER_NUMCHANNELS  = 5
    val SOLO_OFFSET         = 0
    val SOLO_NUMCHANNELS    = 2
+   val SAMPLE_RATE         = 44100.0
 
    val support             = new REPLSupport
    val PEOPLE_CHANGROUPS   = List.empty[ (String, Int, Int) ]
@@ -65,7 +66,8 @@ object InterPlay {
    lazy val MIC_AND_PEOPLE = ("Mic", MIC_OFFSET, MIC_NUMCHANNELS) :: PEOPLE_CHANGROUPS
 
    val BASE_PATH           = new File( new File( System.getProperty( "user.home" ), "Desktop" ), "InterPlay" )
-   val REC_PATH            = new File( BASE_PATH, "rec" )
+   lazy val REC_PATH       = new File( BASE_PATH, "rec" )
+   lazy val TEMPLATE_PATH  = new File( BASE_PATH, "templates" )
 
    val LIVE_MODE           = 1
    var LIVE_FILE           = Some( "live110125_143645.irc" )
@@ -160,6 +162,8 @@ object InterPlay {
 //      ntpw.setLocation( sspw.getX, sspw.getY + sspw.getHeight + 32 )
 //      sspw.setVisible( true )
 //      ntpw.setVisible( true )
+
+      Similarity.templates // initializes them
 
 //      sif.setLocation( sspw.getX + sspw.getWidth + 32, sif.getY )
 //      sif.setVisible( true )

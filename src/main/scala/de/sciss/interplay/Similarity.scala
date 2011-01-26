@@ -29,10 +29,13 @@
 package de.sciss.interplay
 
 import actors.Actor
+import InterPlay._
 import SoundProcesses._
 import de.sciss.math.SVD
-import java.io.File
 import de.sciss.synth.io.{AudioFile, AudioFileSpec}
+import collection.breakOut
+import collection.immutable.{IndexedSeq => IIdxSeq, Map => IMap}
+import java.io.{FileFilter, File}
 
 object Similarity {
    sealed trait Type
@@ -40,23 +43,87 @@ object Similarity {
    // principal component analysis through singular value decomposition
    case object PCA extends Type
 
-   // normalized cross correleation ( http://en.wikipedia.org/wiki/Cross-correlation )
+   // normalized cross correlation ( http://en.wikipedia.org/wiki/Cross-correlation )
    case object CC extends Type
 
-   def test( off: Int, svnFrames: Int, normalize: Boolean = false, tpe: Type = CC ) {
-      Actor.actor( act( off, svnFrames, normalize, tpe ))
+//   private val sync = new AnyRef
+
+   // ---- actor messages ----
+   private case class Search( temp: Template, minThresh: Float, maxNum: Int, integWin: Float, result: IIdxSeq[ (Int, Float) ] => Unit )
+
+   private lazy val actor = (new Actor { def act = loop { react {
+      case s: Search => s.result( searchAct( s ))
+   }}}).start
+
+   lazy val templates: IMap[ String, Template ] = TEMPLATE_PATH.listFiles( new FileFilter {
+      def accept( f: File ) = try {
+         val spec = AudioFile.readSpec( f )
+         spec.numChannels == anaClientBuf.numChannels
+      } catch { case _ => false }
+   }).map( f => {
+      val af   = AudioFile.openRead( f )
+      val mat  = Mat( anaClientBuf, af.numFrames.toInt )
+      af.readFrames( mat.arr )
+      af.close
+      val name0= f.getName()
+      val name = name0.substring( 0, name0.lastIndexOf( '.' ))
+      name -> Template( name, mat )
+   })( breakOut )
+
+   def search( temp: Template, minThresh: Float, maxNum: Int, integWin: Float )( result: IIdxSeq[ (Int, Float) ] => Unit ) {
+      actor ! Search( temp, minThresh, maxNum, integWin, result )
    }
 
-   private def act( off0: Int, svnFrames0: Int, normalize: Boolean, tpe: Type ) {
+   def test( off: Int, svnFrames: Int, normalize: Boolean = false, tpe: Type = CC ) {
+      Actor.actor( testAct( off, svnFrames, normalize, tpe ))
+   }
+
+   private def searchAct( s: Search ) : IIdxSeq[ (Int, Float) ] = {
+      val buf           = anaClientBuf
+      val numFrames     = buf.framesWritten
+      val integFrames   = (s.integWin * buf.sampleRate + 0.5).toInt
+//      if( buf.framesWritten < integFrames ) return IIdxSeq.empty
+      val srcMat        = s.temp.mat
+      val n             = srcMat.numFrames
+      val dstMat        = Mat( buf, n )
+      var lastHitOff    = -integFrames
+      var lastHitCorr   = 0f
+      var res           = IIdxSeq.empty[ (Int, Float) ]
+
+      def addLastHit() = if( lastHitOff >= 0 ) res :+= (lastHitOff, lastHitCorr)
+
+      var off = 0; while( off < numFrames - n ) {
+         prepare( off, dstMat )
+         val c = xcorr( srcMat, dstMat ).toFloat
+         if( c > s.minThresh ) {
+            if( off - lastHitOff < integFrames ) {
+               if( c > lastHitCorr ) {
+                  lastHitCorr = c
+                  lastHitOff  = off
+               }
+            } else {
+               addLastHit()
+               lastHitCorr = c
+               lastHitOff  = off
+            }
+         }
+      off += 1 }
+
+      addLastHit()
+      res = res.sortWith( (a, b) => a._2 > b._2 )
+      res.take( s.maxNum )
+   }
+
+   private def testAct( off0: Int, svnFrames0: Int, normalize: Boolean, tpe: Type ) {
       println( "SVD STARTED" )
 
+      val buf        = anaClientBuf
       val path       = File.createTempFile( "svd", ".aif", new File( System.getProperty( "user.home" ), "Desktop" ))
-      val af         = AudioFile.openWrite( path, AudioFileSpec( numChannels = 1, sampleRate = 44100.0 / anaWinStep ))
+      val af         = AudioFile.openWrite( path, AudioFileSpec( numChannels = 1, sampleRate = buf.sampleRate ))
       val afBuf      = af.frameBuffer( 1024 )
       val afChan     = afBuf( 0 )
       var bufPos     = 0
 
-      val buf        = anaClientBuf
       val numFrames  = buf.framesWritten
       val srcFrame   = buf.emptyFrame
       val dstFrame   = buf.emptyFrame
@@ -88,7 +155,7 @@ object Similarity {
       val off        = math.max( 0, math.min( numFrames - svnFrames0, off0 ))
       val n          = math.min( svnFrames0, numFrames - off )
 
-      val process: Int => Unit = tpe match {
+      val process: Int => Float = tpe match {
          case PCA =>
             val mat        = Array.ofDim[ Float ]( m, n )
             val ns         = math.min( m + 1, n )
@@ -123,100 +190,23 @@ object Similarity {
                      difsum += d * d
                   }
                y += 1 }
-               afChan( bufPos ) = (difsum / m).toFloat
+               (difsum / m).toFloat
             }
 
          case CC =>
-            val srcMat  = Array.ofDim[ Float ]( n, m )
-            val dstMat  = Array.ofDim[ Float ]( n, m )
-            val matSize = n * m
-
-            def readMat( off: Int, mat: Array[ Array[ Float ]]) {
-               var idx = off; var x = 0; while( x < n ) {
-                  buf.getFrame( idx, mat( x ))
-               x += 1; idx += 1 }
-            }
-
-            def stat( mat: Array[ Array[ Float ]]) = {
-               var sum = 0.0
-               var x = 0; while( x < n ) {
-                  val frame = mat( x )
-                  var y = 0; while( y < m ) {
-                     sum += frame( y )
-                  y += 1 }
-               x += 1 }
-               val mean = sum / matSize
-               sum = 0.0
-               x = 0; while( x < n ) {
-                  val frame = mat( x )
-                  var y = 0; while( y < m ) {
-                     val d = frame( y ) - mean
-                     sum += d * d
-                  y += 1 }
-               x += 1 }
-               val stddev = math.sqrt( sum / matSize )
-               (mean, stddev)
-            }
-
-            def norm( mat: Array[ Array[ Float ]], mean: Double, stddev: Double ) {
-               val add = -mean
-               val mul = 1.0 / stddev
-               var x = 0; while( x < n ) {
-                  val frame = mat( x )
-                  var y = 0; while( y < m ) {
-                     frame( y ) = ((frame( y ) + add) * mul).toFloat
-                  y += 1 }
-               x += 1 }
-            }
-
-            def prepare( off: Int, mat: Array[ Array[ Float ]]) {
-               readMat( off, mat )
-               val (mean, stddev) = stat( mat )
-               norm( mat, mean, stddev )
-            }
+            val srcMat  = Mat( buf, n )
+            val dstMat  = Mat( buf, n )
 
             prepare( off, srcMat )
 
             (off: Int) => {
                prepare( off, dstMat )
-               var sum = 0.0
-               var x = 0; while( x < n ) {
-                  val srcFrame = srcMat( x )
-                  val dstFrame = dstMat( x )
-                  var y = 0; while( y < m ) {
-                     sum += srcFrame( y ) * dstFrame( y )
-                  y += 1 }
-               x += 1 }
-               afChan( bufPos ) = (sum / (matSize - 1)).toFloat
+               xcorr( srcMat, dstMat ).toFloat
             }
       }
 
       var x = 0; while( x < numFrames - n ) {
-         process( x )
-
-//         var y = 0; var sqrsum = 0.0; while( y < m ) {
-//            val src = srcFrame( y )
-//            val dst = dstFrame( y )
-//            if( src != 0 ) {
-//               val d = (dst - src) / src
-//               sqrsum += d * d
-//            }
-//         y += 1 }
-
-//         var y = 0; var sqrsum = 0.0; var srcsum = 0.0; while( y < m ) {
-//            val src = srcFrame( y )
-//            val dst = dstFrame( y )
-//            if( src != 0 ) {
-//               val d = (dst - src) / src
-//               sqrsum += d * d
-//               srcsum += src * src
-//            }
-//         y += 1 }
-//         val rms  = sqrsum / (srcsum * m)
-//         afChan( bufPos ) = if( srcsum > 0 ) (-math.log( rms ) / 1024).toFloat else {
-//            println( "woop, zero" )
-//            144f
-//         }
+         afChan( bufPos ) = process( x )
          bufPos += 1
          if( bufPos == 1024 ) {
             af.writeFrames( afBuf )
@@ -229,4 +219,79 @@ object Similarity {
       println( "---- " + af.numFrames + " : DONE!" )
       af.close
    }
+
+   private def readMat( off: Int, mat: Mat ) {
+      var idx = off; var x = 0; while( x < mat.numFrames ) {
+         mat.buf.getFrame( idx, mat.arr( x ))
+      x += 1; idx += 1 }
+   }
+
+   private def stat( mat: Mat ) : (Double, Double) = {
+      var sum = 0.0
+      var x = 0; while( x < mat.numFrames ) {
+         val frame = mat.arr( x )
+         var y = 0; while( y < mat.numChannels ) {
+            sum += frame( y )
+         y += 1 }
+      x += 1 }
+      val mean = sum / mat.size
+      sum = 0.0
+      x = 0; while( x < mat.numFrames ) {
+         val frame = mat.arr( x )
+         var y = 0; while( y < mat.numChannels ) {
+            val d = frame( y ) - mean
+            sum += d * d
+         y += 1 }
+      x += 1 }
+      val stddev = math.sqrt( sum / mat.size )
+      (mean, stddev)
+   }
+
+   private def norm( mat: Mat, mean: Double, stddev: Double ) {
+      val add = -mean
+      val mul = 1.0 / stddev
+      var x = 0; while( x < mat.numFrames ) {
+         val frame = mat.arr( x )
+         var y = 0; while( y < mat.numChannels ) {
+            frame( y ) = ((frame( y ) + add) * mul).toFloat
+         y += 1 }
+      x += 1 }
+   }
+
+   private def prepare( off: Int, mat: Mat ) {
+      readMat( off, mat )
+      val (mean, stddev) = stat( mat )
+      norm( mat, mean, stddev )
+   }
+
+   private def xcorr( a: Mat, b: Mat ) : Double = {
+      var sum = 0.0
+      var x = 0; while( x < a.numFrames ) {
+         val af = a.arr( x )
+         val df = b.arr( x )
+         var y = 0; while( y < a.numChannels ) {
+            sum += af( y ) * df( y )
+         y += 1 }
+      x += 1 }
+      sum / (a.size - 1)
+   }
+
+   def saveTemplate( off: Int, numFrames: Int, name: String ) {
+      val mat = Mat( anaClientBuf, numFrames )
+      prepare( off, mat )
+      val f = new File( TEMPLATE_PATH, name + ".aif" )
+      val af = AudioFile.openWrite( f, AudioFileSpec( numChannels = mat.numChannels, sampleRate = mat.buf.sampleRate ))
+      af.writeFrames( mat.arr )
+      af.close
+   }
+
+   object Mat {
+      def apply( buf: AnalysisBuffer, numFrames: Int ) : Mat =
+         apply( buf, Array.ofDim[ Float ]( numFrames, buf.numChannels ), numFrames, buf.numChannels )
+   }
+   case class Mat( buf: AnalysisBuffer, arr: Array[ Array[ Float ]], numFrames: Int, numChannels: Int ) {
+      val size = numFrames * numChannels
+   }
+
+   case class Template( name: String, mat: Mat )
 }

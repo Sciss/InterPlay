@@ -36,7 +36,7 @@ object AnalysisBuffer {
    type Frame = Array[ Float ]
 }
 
-class AnalysisBuffer( val numFrames: Int, val numChannels: Int ) extends Model {
+class AnalysisBuffer( val numFrames: Int, val numChannels: Int, val sampleRate: Double ) extends Model {
    import AnalysisBuffer._
 
    private val buf = ByteBuffer.allocateDirect( numFrames * numChannels * 4 ).asFloatBuffer

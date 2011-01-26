@@ -50,7 +50,7 @@ object SoundProcesses {
 
    val maxLiveAnaFr   = {
       val secs = liveDur * 60
-      val fr0  = (secs * 44100 + 0.5).toLong
+      val fr0  = (secs * SAMPLE_RATE + 0.5).toLong
       val f1   = fr0 - (fr0 % diskBufSize )
       assert( f1 % anaWinStep == 0 )
       (f1 / anaWinStep).toInt
@@ -58,7 +58,7 @@ object SoundProcesses {
    val numMelCoeffs     = 13
    val anaChans         = numMelCoeffs
    val maxLiveFrames    = maxLiveAnaFr * anaWinStep
-   val maxLiveDur       = maxLiveFrames / 44100.0 // 10.0 * 60
+   val maxLiveDur       = maxLiveFrames / SAMPLE_RATE // 10.0 * 60
    var liveBuf: Buffer  = _
 //   var liveBufPhaseBus: AudioBus = _
 //   val micChanIndex     = 0
@@ -66,7 +66,7 @@ object SoundProcesses {
 
    var synPostM: Synth = _
 //   val anaClientBuf    = ByteBuffer.allocateDirect( maxLiveAnaFr * anaChans * 4 ).asFloatBuffer
-   val anaClientBuf    = new AnalysisBuffer( maxLiveAnaFr, anaChans ) // .asFloatBuffer
+   val anaClientBuf    = new AnalysisBuffer( maxLiveAnaFr, anaChans, SAMPLE_RATE / anaWinStep ) // .asFloatBuffer
    val anaMarkers      = new AnalysisMarkers // ISortedSet.empty[ Int ]
 
    val livePath         = new File( REC_PATH, "live" )
@@ -251,7 +251,7 @@ object SoundProcesses {
          val pfeed   = pAudio( "feed", ParamSpec( 0.001, 1.0, ExpWarp ), 0.001 )
          val pmix    = pMix
          graph { in =>
-            val numFrames  = (sampleRate * 30).toInt
+            val numFrames  = (SAMPLE_RATE * 30).toInt
             val numChannels= in.numOutputs
             val buf        = bufEmpty( numFrames, numChannels )
             val bufID      = buf.id

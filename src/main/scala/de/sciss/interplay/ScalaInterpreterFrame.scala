@@ -98,6 +98,8 @@ for( x <- 0 until b.numFrames ) {
 
 //InterPlay.LIVE_FILE = Some( "live110124_190643.irc" )
 SoundProcesses.playPath = Some( new java.io.File( SoundProcesses.livePath, "live110124_190643.irc" ))
+
+Similarity.search( Similarity.templates( "string" ), 0.5f, 30, 1.0f ) { res => println( "SEARCH: " + res )}
 """
 
       pane.initialCode = Some(
