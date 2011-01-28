@@ -1,0 +1,9 @@
+gen( "pulse" ) {
+   val pfreq  = pAudio( "freq", ParamSpec( 0.1, 100, ExpWarp ), 1 )
+   val pwidth = pAudio( "width", ParamSpec( 0, 1 ), 0.5 )
+//   val pdecay = pAudio( "decay" , ParamSpec( 0.1, 10, ExpWarp ), 1 )
+   graph {
+//       Decay.ar( ..., , pdecay.ar )
+	LFPulse.ar( pfreq.ar, width = pwidth.ar )
+   }
+}

@@ -1,3 +1,5 @@
 [OK]	"live-lp" : should have a little xfade to prevent clicks
 
 repeated search seems to not update results if called too early in the buffer generation
+
+; sum-rec : funzt niet beim re-starten (scheint nur stille aufzuzeichen)

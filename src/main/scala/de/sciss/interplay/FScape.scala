@@ -41,7 +41,7 @@ object FScape {
 
    lazy val fsc = {
       val res = FScapeJobs()
-      res.verbose = true
+      res.verbose = false // true
       res
    }
 
