@@ -28,16 +28,18 @@
 
 package de.sciss.interplay
 
-import de.sciss.synth.proc.ProcTxn
 import InterPlay._
 import SoundProcesses._
 import de.sciss.synth.Model
 import collection.immutable.{IndexedSeq => IIdxSeq, SortedSet => ISortedSet}
 import actors.Actor
+import de.sciss.synth.proc.{TxnModel, Ref, ProcTxn}
+import java.util.{TimerTask, Timer}
 
 object Process {
    val verbose = true
    val all = List( ProcSehen, ProcHoeren, ProcRiechen, ProcSchmecken, ProcTasten, ProcOrientieren, ProcGleichgewichten )
+//   lazy val map: Map[ String, Process ] = all.map( p => p.name -> p )( collection.breakOut )
 
    private val actor = new Actor { def act = loop { react {
       case d: Do => d.perform
@@ -50,6 +52,16 @@ object Process {
 
    def secsToFrames( secs: Double ) = (secs * (SAMPLE_RATE / anaWinStep)).toInt
    def framesToPos( idx: Int )      = idx.toDouble / (anaClientBuf.numFrames - 1)
+
+   private lazy val timer = new Timer( true )
+
+   def delay( dur: Double )( thunk: => Unit ) : TimerTask = {
+      val res = new TimerTask {
+         def run = thunk
+      }
+      timer.schedule( res, (dur * 1000).toLong )
+      res
+   }
 
    def waitForAnalysis( minDur: Double )( thunk: => Unit ) {
       val minFrames = secsToFrames( minDur )
@@ -123,15 +135,71 @@ object Process {
        def compare( that: Sample ) : Int = idx.compare( that.idx )
    }
    private val sampleOrd = Ordering.ordered[ Sample ]
+
+   case class State( valid: Boolean, thinking: Boolean = false, playing: Boolean = false )
+   case class Update( p: Process, state: State )
+
+   type Listener = TxnModel.Listener[ Process.Update ]
 }
 
-trait Process {
+trait Process extends TxnModel[ Process.Update ] {
+   proc =>
+
+   import Process._
+
+//   private val activeRef = Ref( false )
+   private val stateRef = Ref( State( true ))
+
    def name : String
    def verbose : Boolean
 
    def init(  implicit tx: ProcTxn ) : Unit
-   def start( implicit tx: ProcTxn ) : Unit
-   def stop(  implicit tx: ProcTxn ) : Unit
 
    protected def inform( what: => String ) = if( verbose ) println( name + ": " + what )
+
+//   def start( implicit tx: ProcTxn ) {
+//      val st = state
+//      if( !st.active ) {
+//         state = st.copy( active = true )
+//      }
+//   }
+
+   protected def startThinking( implicit tx: ProcTxn ) {
+      val st = state
+      if( !st.thinking ) state = st.copy( thinking = true )
+   }
+
+   protected def stopThinking( implicit tx: ProcTxn ) {
+      val st = state
+      if( st.thinking ) state = st.copy( thinking = false )
+   }
+
+   protected def startPlaying( implicit tx: ProcTxn ) {
+      val st = state
+      if( !st.playing ) state = st.copy( playing = true )
+   }
+
+   protected def stopPlaying( implicit tx: ProcTxn ) {
+      val st = state
+      if( st.playing ) state = st.copy( playing = false )
+   }
+
+   def state( implicit tx: ProcTxn ) = stateRef()
+   private def state_=( newState: State )( implicit tx: ProcTxn ) {
+      val oldState = stateRef.swap( newState )
+      if( oldState != newState ) {
+         touch
+         val u = updateRef()
+         updateRef.set( u.copy( state = newState ))
+      }
+   }
+
+   protected def emptyUpdate  = Update( proc, State( false ))
+   protected def fullUpdate( implicit tx: ProcTxn ) = Update( proc, state )
+
+   def stop( implicit tx: ProcTxn ) {
+
+   }
+
+//   def isActive( implicit tx: ProcTxn ) : Boolean = activeRef()
 }

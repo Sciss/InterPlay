@@ -73,6 +73,8 @@ object ProcGleichgewichten extends Process {
       val steady     = rrand( MIN_STEADY, MAX_STEADY )
       val waitTime   = rrand( MIN_WAIT, MAX_WAIT )
       inform( "waitForAnalysis " + waitTime )
+
+      startThinking
       waitForAnalysis( waitTime ) {
          inform( "searchAnalysis " + steady )
          searchAnalysis( steady,
@@ -81,6 +83,9 @@ object ProcGleichgewichten extends Process {
 
             inform( "result " + res )
             ProcTxn.spawnAtomic { implicit tx => res.zipWithIndex.foreach { tup =>
+               stopThinking
+               startPlaying
+
                val (smp, idx) = tup
                val p = genFact.make
                p.control( "dur" ).v = exprand( MIN_STEADY, steady )
@@ -122,11 +127,11 @@ object ProcGleichgewichten extends Process {
       m
    }
 
-   def start( implicit tx: ProcTxn ) {
-
-   }
-
-   def stop(  implicit tx: ProcTxn ) {
-
-   }
+//   def start( implicit tx: ProcTxn ) {
+//
+//   }
+//
+//   def stop(  implicit tx: ProcTxn ) {
+//
+//   }
 }

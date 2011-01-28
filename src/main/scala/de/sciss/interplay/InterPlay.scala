@@ -71,7 +71,7 @@ object InterPlay {
    lazy val FSC_PATH       = new File( REC_PATH, "fsc" )
 
    val LIVE_MODE           = 1
-   var LIVE_FILE           = Some( "live110125_143645.irc" )
+   var LIVE_FILE           = Some( "live110128_121639.irc" ) // Some( "live110125_143645.irc" )
 
 //   println( "MIC_AND_PEOPLE = " + MIC_AND_PEOPLE )
 
