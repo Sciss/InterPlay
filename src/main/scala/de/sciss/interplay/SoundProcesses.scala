@@ -85,6 +85,7 @@ object SoundProcesses {
    }).toList.sortBy( _.getName ).lastOption )
 
    private var pLive: Proc = _
+   var pLiveHlb: Proc = _
    private var pLiveOut: Proc = _
 
    def init( s: Server )( implicit tx: ProcTxn ) {
@@ -333,7 +334,7 @@ object SoundProcesses {
          }
       }
 
-      filter( "hilbert" ) {
+      val fltHilb = filter( "hilbert" ) {
          val pfreq   = pAudio( "freq", ParamSpec( -1, 1 ), 0.0 )
          val pmix    = pMix
          graph { in =>
@@ -702,8 +703,32 @@ object SoundProcesses {
 
       // init live
       pLive    = genLive.make
-      pLiveOut = diffMute.make
-      pLive ~> pLiveOut
+//      pLiveOut = diffMute.make
+//      pLiveHlb = fltHilb.make
+//      pLiveHlb.control( "freq" ).v = -1e-6
+      pLiveHlb = (filter( "fb" ) {
+         val pup        = pControl( "up", ParamSpec( 0.1, 10, ExpWarp ), 2 )
+         val pdn        = pControl( "dn", ParamSpec( 0.1, 10, ExpWarp ), 4 )
+         val pathresh   = pControl( "athr", ParamSpec( 0.001, 1, ExpWarp ), 0.003 )
+         val ppthresh   = pControl( "pthr", ParamSpec( 0.1, 1, ExpWarp ), 0.5 )
+         graph { in =>
+            val flt0 = MidEQ.ar( in, 1328, 1.0/10, -18 )
+            def stage( in: GE ) = {
+               val Seq( freq, hasPitch ) = Pitch.kr( in,
+                  initFreq = 441,
+                  minFreq  = 441,
+                  maxFreq  = 16000,
+                  execFreq = 441,
+                  ampThresh = 0.05,
+                  peakThresh = 0.2 ).outputs
+               val q = freq.linlin( 441, 16000, 9, 2 ) + 1
+               MidEQ.ar( in, freq, q.reciprocal, LagUD.kr( hasPitch * -18, pup.kr, pdn.kr ))
+            }
+            stage( stage( stage( flt0 )))
+         }
+      }).make
+      pLiveOut = ProcDemiurg.factories.find( _.name == "O-all" ).get.make
+      pLive ~> pLiveHlb ~> pLiveOut
 
       val dfHP = SynthDef( "hp-mix" ) {
          val sig = In.ar( masterBus.index, masterBus.numChannels )
@@ -719,6 +744,7 @@ object SoundProcesses {
    def startLive {
       ProcTxn.spawnAtomic { implicit tx =>
          pLiveOut.play
+         pLiveHlb.play
          pLive.play
       }
    }
