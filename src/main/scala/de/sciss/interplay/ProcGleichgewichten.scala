@@ -82,23 +82,23 @@ object ProcGleichgewichten extends Process {
             frameMeasure = minFlat( _ ), integMeasure = worstFlat( _ )) { res =>
 
             inform( "result " + res )
-            ProcTxn.spawnAtomic { implicit tx => res.zipWithIndex.foreach { tup =>
-println( "EMIT GLEICH" )
+            ProcTxn.spawnAtomic { implicit tx =>
                stopThinking
                startPlaying
-
-               val (smp, idx) = tup
-               val p = genFact.make
-               p.control( "dur" ).v = exprand( MIN_STEADY, steady )
-               // DDD p.control( "speed" ).v = fluctuate( phase )
-//               println( "juuu. measure = " + smp.measure )
-               // measure is typically between 0.0 (maximally flat) and 0.5
-               p.control( "pos" ).v = framesToPos( smp.idx )
-               val d = diffFact.make
-               d.control( "idx" ).v = idx
-               p ~> d
-               addTail( d, rrand( MIN_FADE, MAX_FADE ))
-            }}
+               res.zipWithIndex.foreach { tup =>
+                  val (smp, idx) = tup
+                  val p = genFact.make
+                  p.control( "dur" ).v = exprand( MIN_STEADY, steady )
+                  // DDD p.control( "speed" ).v = fluctuate( phase )
+      //               println( "juuu. measure = " + smp.measure )
+                  // measure is typically between 0.0 (maximally flat) and 0.5
+                  p.control( "pos" ).v = framesToPos( smp.idx )
+                  val d = diffFact.make
+                  d.control( "idx" ).v = idx
+                  p ~> d
+                  addTail( d, rrand( MIN_FADE, MAX_FADE ))
+               }
+            }
          }
       }
    }

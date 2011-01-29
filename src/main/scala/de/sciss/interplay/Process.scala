@@ -113,12 +113,12 @@ require( es.nonEmpty )
                pSrc
             })( collection.breakOut )
             p.dispose
-println( "  disposed: " + p.name )
+//println( "  disposed: " + p.name )
             srcs.foreach( flonky( _ ))
          }
-println( "---- begin disposal of " + p.name )
+//println( "---- begin disposal of " + p.name )
          flonky( p )
-println( "---- end" )
+//println( "---- end" )
       }
    }
 
@@ -149,7 +149,7 @@ println( "---- end" )
          val buf        = anaClientBuf
          val chanBuf    = new Array[ Float ]( buf.numChannels )
          val timeBuf    = new Array[ Float ]( frameInteg )
-         val numFrames  = buf.framesWritten - timeInteg + 1
+         val numFrames  = buf.framesWritten - frameInteg + 1
          var res        = ISortedSet.empty[ Sample ]( sampleOrd )
          var resCnt     = 0
 
@@ -182,6 +182,58 @@ println( "---- end" )
          off += 1 }
 
          inform( "searchAnalysis done" )
+         fun( res )
+      }
+   }
+
+   def searchAnalysisM( frameInteg: Int, maxResults: Int = 20, measure: Array[ Array[ Float ]] => Float )
+                      ( fun: ISortedSet[ Sample ] => Unit, rotateBuf: Boolean = false ) {
+      require( maxResults > 0, "maxResults must be > 0, but is " + maxResults )
+      spawn {
+         inform( "searchAnalysisM started" )
+         val buf        = anaClientBuf
+         val numChannels= buf.numChannels
+         val frames     = Array.ofDim[ Float ]( buf.numFrames, numChannels )
+         val numFrames  = buf.framesWritten - frameInteg + 1
+         var res        = ISortedSet.empty[ Sample ]( sampleOrd )
+         var resCnt     = 0
+         val frameIntegM= frameInteg - 1
+
+         def karlheinz( idx: Int ) {
+            val m = measure( frames )
+            if( resCnt < maxResults ) {
+               res += Sample( idx, m )
+               resCnt += 1
+            } else if( res.last.measure > m ) {
+               res = res.dropRight( 1 ) + Sample( idx, m )
+            }
+         }
+
+         if( numFrames > 0 ) {
+            var x = 0; while( x < frameInteg ) {
+               buf.getFrame( 0, frames( x ))
+            x += 1 }
+            karlheinz( 0 )
+         }
+         var off = 1; while( off < numFrames ) {
+//            val fm = frameMeasure( buf.getFrame( off, chanBuf ))
+            if( rotateBuf ) {
+               var y = 0; while( y < numChannels ) {
+                  var prev = frames( 0 )( y )
+                  var x = frameIntegM; while( x >= 0 ) {   // ouch....
+                     val tmp = frames( x )( y )
+                     frames( x )( y ) = prev
+                     prev = tmp
+                  x -= 1 }
+               y += 1 }
+               buf.getFrame( off, frames( frameIntegM ))
+            } else {
+               buf.getFrame( off, frames( (off - 1) % frameInteg ))
+            }
+            karlheinz( off )
+         off += 1 }
+
+         inform( "searchAnalysisM done" )
          fun( res )
       }
    }

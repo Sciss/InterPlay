@@ -31,6 +31,7 @@ package de.sciss.interplay
 import java.awt.event.{ComponentEvent, ComponentAdapter, WindowAdapter, ActionListener, ActionEvent}
 import de.sciss.gui.{PeakMeterPanel, PeakMeter, PeakMeterGroup}
 import InterPlay._
+import SoundProcesses._
 import de.sciss.scalainterpreter.LogPane
 import java.awt.{Font, Color, BorderLayout}
 import java.io.PrintStream
@@ -107,10 +108,12 @@ class ControlPanel() extends JPanel {
       panel.add( tinyToggle( "HP" )( SoundProcesses.headphoneMix( _ )))
       List( ("StringBleach", "string"), ("GlissBleach", "gliss") ) foreach { tup =>
          val (name, tempName) = tup
-         val proc = SearchBleachProc( name, tempName )
          space()
          panel.add( tinyButton( tempName.capitalize ) {
-            proc.perform
+            (Similarity.templates.get( tempName ), playPath) match {
+               case (Some( temp ), Some( inPath )) => ProcTasten.perform( temp, inPath )
+               case _ =>
+            }
          })
       }
 
