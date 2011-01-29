@@ -69,7 +69,7 @@ object ProcSchmecken extends Process {
             }
             Done.kr( phase ).react {
                ProcTxn.spawnAtomic { implicit tx =>
-                  ProcHelper.stopAndDispose( 0.0, me )
+                  ProcHelper.stopAndDispose( me )
                   FScape.injectWavelet( recPath )
                }
             }
@@ -83,13 +83,21 @@ object ProcSchmecken extends Process {
          def updated( u: Update ) {
             if( u.state.valid && u.state.playing && !oldState.playing ) {
                val t = exprand( MIN_WAIT, MAX_WAIT )
-               val tt = delay( t ) {
-                  ProcTxn.atomic { implicit tx =>
-                     val p = genFact.make
-                     p.control( "dur" ).v = rrand( MIN_REC, MAX_REC )
-                     p.control( "pos" ).v = 0.0
-//                     ProcHelper.playNewDiff( 0.0, p )
-                     replaceTail( p )
+               ProcTxn.atomic { implicit tx =>
+                  startThinking
+                  val tt = delay( t ) {
+                     ProcTxn.atomic { implicit tx =>
+                        stopThinking
+                        val p = genFact.make
+                        p.control( "dur" ).v = rrand( MIN_REC, MAX_REC )
+                        p.control( "pos" ).v = 0.0
+   //                     ProcHelper.playNewDiff( 0.0, p )
+                        if( replaceTail( p )) {
+                           startPlaying    // XXX stopPlaying missing
+                        } else {
+                           p.dispose
+                        }
+                     }
                   }
                }
             }

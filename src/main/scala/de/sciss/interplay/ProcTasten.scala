@@ -6,5 +6,7 @@ object ProcTasten extends Process {
    val name    = "p-tast"
    val verbose = false
 
-   def init(  implicit tx: ProcTxn ) {}
+   def init(  implicit tx: ProcTxn ) {
+
+   }
 }

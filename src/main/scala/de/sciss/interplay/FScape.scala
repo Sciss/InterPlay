@@ -71,7 +71,7 @@ object FScape {
             val sig = DiskIn.ar( spec.numChannels, bufCue( outPath.getAbsolutePath ).id )
             Done.kr( Line.kr( 0, 0, pdur.ir )).react {
                ProcTxn.spawnAtomic { implicit tx =>
-                  ProcHelper.stopAndDispose( 0.1, d, postFun = tx => ProcHelper.stopAndDispose( 0.0, g )( tx ))
+                  ProcHelper.stopAndDispose( d, 0.1, postFun = tx => ProcHelper.stopAndDispose( g )( tx ))
                }
             }
             sig

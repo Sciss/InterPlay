@@ -70,9 +70,10 @@ object Process {
       if( fadeTime > 0 ) xfade( fadeTime ) { p.play } else p.play
    }
 
-   def replaceTail( p: Proc, fadeTime: Double = 0.0 )( implicit tx: ProcTxn ) {
+   def replaceTail( p: Proc, fadeTime: Double = 0.0 )( implicit tx: ProcTxn ) : Boolean = {
       val oldIn   = pDiffThru.audioInput( "in" )
       val es      = oldIn.edges
+      if( es.isEmpty ) return false
       val newIn   = p.audioInput( "in" )
       es.foreach { e =>
          e.out ~/> oldIn
@@ -87,6 +88,7 @@ object Process {
          p ~> pDiffThru
          p.play
       }
+      true
    }
 
    def waitForAnalysis( minDur: Double )( thunk: => Unit ) {

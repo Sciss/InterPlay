@@ -125,7 +125,7 @@ object ProcHelper {
 //      })
    }
 
-   def stopAndDispose( fadeTime: Double, p: Proc, preFun: ProcTxn => Unit = _ => (), postFun: ProcTxn => Unit = _ => () )( implicit tx: ProcTxn ) {
+   def stopAndDispose( p: Proc, fadeTime: Double = 0.0, preFun: ProcTxn => Unit = _ => (), postFun: ProcTxn => Unit = _ => () )( implicit tx: ProcTxn ) {
       val state = p.state
 //println( "STOP-AND-DISPOSE " + p + " -> " + state + " / " + tx.transit )
 //      if( !state.fading && (!state.playing || state.bypassed || (tx.transit == Instant)) ) {
@@ -151,7 +151,7 @@ object ProcHelper {
       }
    }
 
-   def playNewDiff( fadeTime: Double, p: Proc, postFun: ProcTxn => Unit = _ => () )( implicit tx: ProcTxn ) {
+   def playNewDiff( p: Proc, fadeTime: Double = 0.0, postFun: ProcTxn => Unit = _ => () )( implicit tx: ProcTxn ) {
       lazy val pl: Proc.Listener = new Proc.Listener {
          def updated( u: Proc.Update ) {
             if( u.audioBusesConnected.find( b => (b.sourceVertex == p) && (b.out.name == "out") ).isDefined ) {

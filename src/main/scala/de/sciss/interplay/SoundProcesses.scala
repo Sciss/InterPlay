@@ -698,7 +698,7 @@ object SoundProcesses {
       }).make
       val dummy = (gen( "dummy" ) { graph { Silent.ar( MASTER_NUMCHANNELS )}}).make
       dummy ~> pDiffThru
-      ProcHelper.playNewDiff( 0.0, pDiffThru,  dummy.dispose( _ )) // dummy needed to get the input channel :-(
+      ProcHelper.playNewDiff( pDiffThru, postFun = dummy.dispose( _ )) // dummy needed to get the input channel :-(
 
       def recMix( sig: GE, numOut: Int ) : GE = {
          val numIn = masterBus.numChannels
