@@ -66,14 +66,18 @@ object Process {
 
    def addTail( p: Proc, fadeTime: Double = 0.0 )( implicit tx: ProcTxn ) {
 //      ProcHelper.playNewDiff( fadeTime, p )
-      p ~> pDiffThru
-      if( fadeTime > 0 ) xfade( fadeTime ) { p.play } else p.play
+      p ~> collInt
+//      if( fadeTime > 0 ) xfade( fadeTime ) { p.play } else p.play
+      ProcHelper.playNewDiff( p, fadeTime )
    }
 
-   def replaceTail( p: Proc, fadeTime: Double = 0.0 )( implicit tx: ProcTxn ) : Boolean = {
-      val oldIn   = pDiffThru.audioInput( "in" )
+   def canReplaceTail( implicit tx: ProcTxn ) : Boolean = collInt.audioInput( "in" ).edges.nonEmpty
+
+   def replaceTail( p: Proc, fadeTime: Double = 0.0 )( implicit tx: ProcTxn ) {
+      val oldIn   = collInt.audioInput( "in" )
       val es      = oldIn.edges
-      if( es.isEmpty ) return false
+//      if( es.isEmpty ) return false
+require( es.nonEmpty )
       val newIn   = p.audioInput( "in" )
       es.foreach { e =>
          e.out ~/> oldIn
@@ -81,14 +85,41 @@ object Process {
       }
       if( fadeTime > 0 ) {
          p.bypass
-         p ~> pDiffThru
+         p ~> collInt
          p.play
          xfade( fadeTime ) { p.engage }
       } else {
-         p ~> pDiffThru
+         p ~> collInt
          p.play
       }
       true
+   }
+
+//   def replaceTailOrDispose( p: Proc, fadeTime: Double = 0.0 )( implicit tx: ProcTxn ) : Boolean = {
+//      val res = replaceTail( p, fadeTime )
+//      if( !res ) removeAndDispose( p )
+//      res
+//   }
+
+   def removeAndDispose( p: Proc, fadeTime: Double = 0.0 )( implicit tx: ProcTxn ) {
+      if( fadeTime > 0 ) xfade( fadeTime ) { p.stop } else p.stop
+      ProcHelper.whenFadeDone( p ) { implicit tx =>
+         def flonky( p: Proc ) {
+            p.audioOutputs.flatMap( _.edges ).foreach( e => e.out ~/> e.in )
+            val srcs: Set[ Proc ] = p.audioInputs.flatMap( _.edges ).map( e => {
+               val pSrc = e.sourceVertex
+               if( pSrc.isPlaying ) pSrc.stop
+               e.out ~/> e.in
+               pSrc
+            })( collection.breakOut )
+            p.dispose
+println( "  disposed: " + p.name )
+            srcs.foreach( flonky( _ ))
+         }
+println( "---- begin disposal of " + p.name )
+         flonky( p )
+println( "---- end" )
+      }
    }
 
    def waitForAnalysis( minDur: Double )( thunk: => Unit ) {

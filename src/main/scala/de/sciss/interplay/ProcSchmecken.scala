@@ -88,14 +88,12 @@ object ProcSchmecken extends Process {
                   val tt = delay( t ) {
                      ProcTxn.atomic { implicit tx =>
                         stopThinking
-                        val p = genFact.make
-                        p.control( "dur" ).v = rrand( MIN_REC, MAX_REC )
-                        p.control( "pos" ).v = 0.0
-   //                     ProcHelper.playNewDiff( 0.0, p )
-                        if( replaceTail( p )) {
+                        if( canReplaceTail ) {
+                           val p = genFact.make
+                           p.control( "dur" ).v = rrand( MIN_REC, MAX_REC )
+                           p.control( "pos" ).v = 0.0
+                           replaceTail( p )
                            startPlaying    // XXX stopPlaying missing
-                        } else {
-                           p.dispose
                         }
                      }
                   }

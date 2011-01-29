@@ -32,7 +32,6 @@ import de.sciss.synth.swing.{NodeTreePanel, ServerStatusPanel}
 import actors.Actor
 import de.sciss.synth.proc.{ProcDemiurg, ProcTxn}
 import de.sciss.synth.{ServerOptionsBuilder, ServerConnection, AudioBus, Server}
-import de.sciss.nuages.{NuagesConfig, NuagesFrame}
 import collection.immutable.{IndexedSeq => IIdxSeq}
 import java.awt.{BorderLayout, Font, GraphicsEnvironment, EventQueue}
 import de.sciss.scalainterpreter.LogPane
@@ -41,8 +40,11 @@ import de.sciss.synth.osc.OSCResponder
 import de.sciss.osc.OSCMessage
 import java.io.{File, PrintStream}
 import SoundProcesses._
+import de.sciss.nuages.{NuagesPanel, NuagesConfig, NuagesFrame}
 
 object InterPlay {
+//   NuagesPanel.verbose = true
+
    var s: Server  = null
 //   var gui: GUI   = null
    var booting: ServerConnection = null

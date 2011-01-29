@@ -52,6 +52,24 @@ object ProcHelper {
       p.addListener( l )
    }
 
+   def whenFadeDone( p: Proc )( fun: ProcTxn => Unit )( implicit tx: ProcTxn ) {
+      if( !p.state.fading ) {
+         fun( tx )
+      } else {
+         lazy val l: Proc.Listener = new Proc.Listener {
+            def updated( u: Proc.Update ) {
+               if( !u.state.fading ) {
+                  ProcTxn.atomic { implicit tx =>
+                     p.removeListener( l )
+                     fun( tx )
+                  }
+               }
+            }
+         }
+         p.addListener( l )
+      }
+   }
+
    private def stopAndDisposeListener( preFun: ProcTxn => Unit, postFun: ProcTxn => Unit ) = new Proc.Listener {
       def updated( u: Proc.Update ) {
 //println( "UPDATE " + u )
@@ -80,34 +98,24 @@ object ProcHelper {
       val out  = proc.audioOutput( "out" )
       val ines = in.edges.toSeq
       val outes= out.edges.toSeq
+      val outesf = outes.filterNot( _.targetVertex.name.startsWith( "$" ))  // XXX tricky shit to determine the meters
 //      if( ines.size > 1 ) println( "WARNING : Filter is connected to more than one input!" )
-      if( ines.size > 1 && outes.size > 1 ) println( "WARNING : Filter is connected to several inputs and outputs!" )
+      if( ines.size > 1 && outesf.size > 1 ) {
+         println( "WARNING : Filter is connected to several inputs and outputs! (" + proc.name + " : inputs = " +
+         ines.map( _.sourceVertex ) + " ; outputs = " + outesf.map( _.targetVertex ) + ")" )
+      }
       if( verbose && outes.nonEmpty ) println( "" + new java.util.Date() + " " + out + " ~/> " + outes.map( _.in ))
-      outes.foreach( oute => {
-//         if( verbose ) println( "" + out + " ~/> " + oute.in )
-         out ~/> oute.in
-      })
-//      ines.headOption.foreach( ine => {
-//         if( verbose ) println( "" + new java.util.Date() + " " + ine.out + " ~> " + outes.map( _.in ))
-//         outes.foreach( oute => {
-////            if( verbose ) println( "" + ine.out + " ~> " + oute.in )
-//            ine.out ~> oute.in
-//         })
-//      })
+      outes.foreach( out ~/> _.in )
       ines.foreach( ine => {
-         if( verbose ) println( "" + new java.util.Date() + " " + ine.out + " ~> " + outes.map( _.in ))
-         outes.foreach( oute => {
-//            if( verbose ) println( "" + ine.out + " ~> " + oute.in )
-            ine.out ~> oute.in
-         })
+         val out = ine.out
+         if( verbose ) println( "" + new java.util.Date() + " " + out + " ~> " + outesf.map( _.in ))
+         outesf.foreach( out ~> _.in )
       })
       // XXX tricky: this needs to be last, so that
       // the pred out's bus isn't set to physical out
       // (which is currently not undone by AudioBusImpl)
       if( verbose && ines.nonEmpty ) println( "" + new java.util.Date() + " " + ines.map( _.out ) + " ~/> " + in )
-      ines.foreach( ine => {
-         ine.out ~/> in
-      })
+      ines.foreach( _.out ~/> in )
       proc.dispose
    }
 

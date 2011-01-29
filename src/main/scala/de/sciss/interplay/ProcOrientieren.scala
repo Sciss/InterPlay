@@ -86,10 +86,11 @@ object ProcOrientieren extends Process {
             ProcTxn.atomic { implicit tx =>
                inform( "Playing" )
                stopThinking
-               val p = filtFact.make
-               if( replaceTail( p )) {
+               if( canReplaceTail ) {
+                  val p = filtFact.make
+                  replaceTail( p )
                   startPlaying
-               } else p.dispose
+               }
             }
          }
       }

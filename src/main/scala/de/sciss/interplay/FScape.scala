@@ -64,14 +64,15 @@ object FScape {
 
       cnt += 1
       val spec = AudioFile.readSpec( outPath )
-      val d = ProcDemiurg.factories( tx ).find( _.name == diffName ).get.make
+      val d = factory( diffName ).make
       lazy val g: Proc = (gen( "fsc" + cnt ) {
          val pdur = pScalar( "dur", ParamSpec( 1, 240 ), 20 )
          graph {
             val sig = DiskIn.ar( spec.numChannels, bufCue( outPath.getAbsolutePath ).id )
             Done.kr( Line.kr( 0, 0, pdur.ir )).react {
                ProcTxn.spawnAtomic { implicit tx =>
-                  ProcHelper.stopAndDispose( d, 0.1, postFun = tx => ProcHelper.stopAndDispose( g )( tx ))
+//                  ProcHelper.stopAndDispose( d, 0.1, postFun = tx => ProcHelper.stopAndDispose( g )( tx ))
+                  IPProcess.removeAndDispose( d, 0.1 )
                }
             }
             sig

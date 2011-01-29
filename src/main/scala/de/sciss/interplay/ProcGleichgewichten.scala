@@ -83,6 +83,7 @@ object ProcGleichgewichten extends Process {
 
             inform( "result " + res )
             ProcTxn.spawnAtomic { implicit tx => res.zipWithIndex.foreach { tup =>
+println( "EMIT GLEICH" )
                stopThinking
                startPlaying
 

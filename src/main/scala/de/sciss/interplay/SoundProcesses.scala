@@ -86,8 +86,9 @@ object SoundProcesses {
 
    private var pLive: Proc = _
    var pLiveHlb: Proc = _
-   private var pLiveOut: Proc = _
-   var pDiffThru: Proc = _
+   var collLive: Proc = _
+   var collInt: Proc = _
+   var collAll: Proc = _
 
    def init( s: Server )( implicit tx: ProcTxn ) {
       liveBuf           = Buffer.alloc( s, maxLiveFrames, MIC_NUMCHANNELS )
@@ -642,7 +643,7 @@ object SoundProcesses {
 //         }
       }
 
-      filter( "O-all" ) {
+      val diffAll = filter( "O-all" ) {
          val pamp  = pAudio( "amp", ParamSpec( 0.01, 10, ExpWarp ), 1 )
 //         val pout  = pAudioOut( "out", None )
 
@@ -688,17 +689,25 @@ object SoundProcesses {
 //         }
 //      }
 
-      pDiffThru = (diff( "O-thru" ) {
+      val filtThru = filter( "O-thru" ) {
+         graph { in =>
+            require( in.numOutputs == MASTER_NUMCHANNELS )
+            in
+         }
+      }
+      val diffThru = diff( "D-thru" ) {
 //         val pin   = pAudioIn( "in", Some( RichBus.audio( s, MASTER_NUMCHANNELS )))
          val pout  = pAudioOut( "out", None )
          graph { in =>
             require( in.numOutputs == MASTER_NUMCHANNELS )
             pout.ar( in )
          }
-      }).make
+      }
+      collInt = filtThru.make
+      collAll = diffThru.make
       val dummy = (gen( "dummy" ) { graph { Silent.ar( MASTER_NUMCHANNELS )}}).make
-      dummy ~> pDiffThru
-      ProcHelper.playNewDiff( pDiffThru, postFun = dummy.dispose( _ )) // dummy needed to get the input channel :-(
+      dummy ~> collInt ~> collAll
+      ProcHelper.playNewDiff( collAll, postFun = dummy.dispose( _ )) // dummy needed to get the input channel :-(
 
       def recMix( sig: GE, numOut: Int ) : GE = {
          val numIn = masterBus.numChannels
@@ -786,8 +795,8 @@ object SoundProcesses {
             stage( stage( stage( flt0 )))
          }
       }).make
-      pLiveOut = factory( "D-all" ).make
-      pLive ~> pLiveHlb ~> pLiveOut
+      collLive = diffAll.make // factory( "D-all" ).make
+      pLive ~> pLiveHlb ~> collLive ~> collAll
 
       val dfHP = SynthDef( "hp-mix" ) {
          val sig = In.ar( masterBus.index, masterBus.numChannels )
@@ -799,14 +808,16 @@ object SoundProcesses {
          hpSynth.runMsg( false )
       ))
 
-      Process.init
+//      Process.init
    }
 
    def startLive {
       ProcTxn.spawnAtomic { implicit tx =>
-         pLiveOut.play
-         pLiveHlb.play
-         pLive.play
+//         pLiveOut.play
+         if( !collLive.isPlaying )  collLive.play
+         if( !pLiveHlb.isPlaying )  pLiveHlb.play
+         if( !pLive.isPlaying )     pLive.play
+         Process.init
       }
    }
 
