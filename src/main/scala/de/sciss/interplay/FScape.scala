@@ -35,6 +35,7 @@ import SoundProcesses._
 import de.sciss.synth
 import synth.io.{AudioFile, AudioFileSpec}
 import synth.proc.{ParamSpec, ProcDemiurg, Proc, ProcTxn, DSL}
+import de.sciss.interplay.{Process => IPProcess}
 
 object FScape {
    import FScapeJobs._
@@ -83,7 +84,9 @@ object FScape {
       }
       g.control( "dur" ).v = spec.numFrames / spec.sampleRate
       g ~> d
-      ProcHelper.playNewDiff( 0.1, d )
+//      ProcHelper.playNewDiff( 0.1, d )
+      IPProcess.addTail( d, 0.1 )
+
       // another spawn necessary because sucky wolkenpumpe puts
       // the output bus to meter connection later
       // ; XXX TODO : this is still a race condition; we should thus

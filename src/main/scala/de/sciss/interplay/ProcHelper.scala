@@ -80,13 +80,21 @@ object ProcHelper {
       val out  = proc.audioOutput( "out" )
       val ines = in.edges.toSeq
       val outes= out.edges.toSeq
-      if( ines.size > 1 ) println( "WARNING : Filter is connected to more than one input!" )
+//      if( ines.size > 1 ) println( "WARNING : Filter is connected to more than one input!" )
+      if( ines.size > 1 && outes.size > 1 ) println( "WARNING : Filter is connected to several inputs and outputs!" )
       if( verbose && outes.nonEmpty ) println( "" + new java.util.Date() + " " + out + " ~/> " + outes.map( _.in ))
       outes.foreach( oute => {
 //         if( verbose ) println( "" + out + " ~/> " + oute.in )
          out ~/> oute.in
       })
-      ines.headOption.foreach( ine => {
+//      ines.headOption.foreach( ine => {
+//         if( verbose ) println( "" + new java.util.Date() + " " + ine.out + " ~> " + outes.map( _.in ))
+//         outes.foreach( oute => {
+////            if( verbose ) println( "" + ine.out + " ~> " + oute.in )
+//            ine.out ~> oute.in
+//         })
+//      })
+      ines.foreach( ine => {
          if( verbose ) println( "" + new java.util.Date() + " " + ine.out + " ~> " + outes.map( _.in ))
          outes.foreach( oute => {
 //            if( verbose ) println( "" + ine.out + " ~> " + oute.in )
@@ -123,9 +131,10 @@ object ProcHelper {
 //      if( !state.fading && (!state.playing || state.bypassed || (tx.transit == Instant)) ) {
       if( !state.fading && (!state.playing || state.bypassed || (fadeTime == 0.0)) ) {
 //println( ".......INSTANT" )
-         preFun( tx )
-         p.dispose
-         postFun( tx )
+//         preFun( tx )
+//         p.dispose
+//         postFun( tx )
+         disposeProc( p, preFun, postFun )
       } else {
          p.addListener( stopAndDisposeListener( preFun, postFun ))
          p.anatomy match {
@@ -142,7 +151,7 @@ object ProcHelper {
       }
    }
 
-   def playNewDiff( fadeTime: Double, p: Proc )( implicit tx: ProcTxn ) {
+   def playNewDiff( fadeTime: Double, p: Proc, postFun: ProcTxn => Unit = _ => () )( implicit tx: ProcTxn ) {
       lazy val pl: Proc.Listener = new Proc.Listener {
          def updated( u: Proc.Update ) {
             if( u.audioBusesConnected.find( b => (b.sourceVertex == p) && (b.out.name == "out") ).isDefined ) {
@@ -150,6 +159,7 @@ object ProcHelper {
                ProcTxn.spawnAtomic { implicit tx =>
                   p.removeListener( pl )
                   if( fadeTime > 0 ) xfade( fadeTime ) { p.play } else p.play
+                  postFun( tx )
                }
             }
          }

@@ -96,7 +96,7 @@ object ProcGleichgewichten extends Process {
                val d = diffFact.make
                d.control( "idx" ).v = idx
                p ~> d
-               ProcHelper.playNewDiff( rrand( MIN_FADE, MAX_FADE ), d )
+               addTail( d, rrand( MIN_FADE, MAX_FADE ))
             }}
          }
       }

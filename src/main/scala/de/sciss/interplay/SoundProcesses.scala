@@ -87,6 +87,7 @@ object SoundProcesses {
    private var pLive: Proc = _
    var pLiveHlb: Proc = _
    private var pLiveOut: Proc = _
+   var pDiffThru: Proc = _
 
    def init( s: Server )( implicit tx: ProcTxn ) {
       liveBuf           = Buffer.alloc( s, maxLiveFrames, MIC_NUMCHANNELS )
@@ -607,11 +608,11 @@ object SoundProcesses {
 
          def placeChannels( sig: GE ) : GE = {
             if( numCh == masterBus.numChannels ) sig else {
-               Vector.fill( chanOff )( Constant( 0 )) ++ sig.outputs ++ Vector.fill( masterBus.numChannels - (numCh + chanOff) )( Constant( 0 ))
+               IIdxSeq.fill( chanOff )( Constant( 0 )) ++ sig.outputs ++ IIdxSeq.fill( masterBus.numChannels - (numCh + chanOff) )( Constant( 0 ))
             }
          }
 
-         val d = diff( "O-all" + suff ) {
+         val d = diff( "D-all" + suff ) {
             val pamp  = pAudio( "amp", ParamSpec( 0.01, 10, ExpWarp ), 1 )
             val pout  = pAudioOut( "out", None )
 
@@ -624,20 +625,50 @@ object SoundProcesses {
             }
          }
 
-         diff( "O-one" + suff ) {
-            val pamp  = pAudio( "amp", ParamSpec( 0.01, 10, ExpWarp ), 1 )
-            val pidx  = pAudio( "idx", ParamSpec( 0, numCh - 1, LinWarp, 1 ), 0 )
-            val pout  = pAudioOut( "out", None )
+//         diff( "O-one" + suff ) {
+//            val pamp  = pAudio( "amp", ParamSpec( 0.01, 10, ExpWarp ), 1 )
+//            val pidx  = pAudio( "idx", ParamSpec( 0, numCh - 1, LinWarp, 1 ), 0 )
+//            val pout  = pAudioOut( "out", None )
+//
+//            graph { in =>
+//               val sig           = (in * Lag.ar( pamp.ar, 0.1 )).outputs
+//               val inChannels    = sig.size
+//               val outChannels   = numCh
+//               val idx           = Lag.ar( pidx.ar, 0.1 )
+//               val outSig        = IIdxSeq.tabulate( outChannels )( ch =>
+//                  sig( ch % inChannels ) * (1 - idx.absdif( ch ).min( 1 )))
+//               pout.ar( placeChannels( outSig ))
+//            }
+//         }
+      }
 
-            graph { in =>
-               val sig           = (in * Lag.ar( pamp.ar, 0.1 )).outputs
-               val inChannels    = sig.size
-               val outChannels   = numCh
-               val idx           = Lag.ar( pidx.ar, 0.1 )
-               val outSig        = IIdxSeq.tabulate( outChannels )( ch =>
-                  sig( ch % inChannels ) * (1 - idx.absdif( ch ).min( 1 )))
-               pout.ar( placeChannels( outSig ))
-            }
+      filter( "O-all" ) {
+         val pamp  = pAudio( "amp", ParamSpec( 0.01, 10, ExpWarp ), 1 )
+//         val pout  = pAudioOut( "out", None )
+
+         graph { in =>
+            val sig          = (in * Lag.ar( pamp.ar, 0.1 )).outputs
+            val inChannels   = sig.size
+            val outChannels  = MASTER_NUMCHANNELS
+            val outSig       = IIdxSeq.tabulate( outChannels )( ch => sig( ch % inChannels ))
+//            pout.ar( placeChannels( outSig ))
+            outSig
+         }
+      }
+
+      filter( "O-one" ) {
+         val pamp  = pAudio( "amp", ParamSpec( 0.01, 10, ExpWarp ), 1 )
+         val pidx  = pAudio( "idx", ParamSpec( 0, MASTER_NUMCHANNELS - 1, LinWarp, 1 ), 0 )
+
+         graph { in =>
+            val sig           = (in * Lag.ar( pamp.ar, 0.1 )).outputs
+            val inChannels    = sig.size
+            val outChannels   = MASTER_NUMCHANNELS
+            val idx           = Lag.ar( pidx.ar, 0.1 )
+            val outSig        = IIdxSeq.tabulate( outChannels )( ch =>
+               sig( ch % inChannels ) * (1 - idx.absdif( ch ).min( 1 )))
+            //placeChannels( outSig )
+            outSig
          }
       }
 
@@ -656,6 +687,18 @@ object SoundProcesses {
 //            pout.ar( placeChannels( outSig ))
 //         }
 //      }
+
+      pDiffThru = (diff( "O-thru" ) {
+//         val pin   = pAudioIn( "in", Some( RichBus.audio( s, MASTER_NUMCHANNELS )))
+         val pout  = pAudioOut( "out", None )
+         graph { in =>
+            require( in.numOutputs == MASTER_NUMCHANNELS )
+            pout.ar( in )
+         }
+      }).make
+      val dummy = (gen( "dummy" ) { graph { Silent.ar( MASTER_NUMCHANNELS )}}).make
+      dummy ~> pDiffThru
+      ProcHelper.playNewDiff( 0.0, pDiffThru,  dummy.dispose( _ )) // dummy needed to get the input channel :-(
 
       def recMix( sig: GE, numOut: Int ) : GE = {
          val numIn = masterBus.numChannels
@@ -743,7 +786,7 @@ object SoundProcesses {
             stage( stage( stage( flt0 )))
          }
       }).make
-      pLiveOut = ProcDemiurg.factories.find( _.name == "O-all" ).get.make
+      pLiveOut = factory( "D-all" ).make
       pLive ~> pLiveHlb ~> pLiveOut
 
       val dfHP = SynthDef( "hp-mix" ) {

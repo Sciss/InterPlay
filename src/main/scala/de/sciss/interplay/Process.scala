@@ -33,8 +33,9 @@ import SoundProcesses._
 import de.sciss.synth.Model
 import collection.immutable.{IndexedSeq => IIdxSeq, SortedSet => ISortedSet}
 import actors.Actor
-import de.sciss.synth.proc.{TxnModel, Ref, ProcTxn}
 import java.util.{TimerTask, Timer}
+import de.sciss.synth.proc.{DSL, Proc, TxnModel, Ref, ProcTxn}
+import DSL._
 
 object Process {
    val verbose = true
@@ -61,6 +62,31 @@ object Process {
       }
       timer.schedule( res, (dur * 1000).toLong )
       res
+   }
+
+   def addTail( p: Proc, fadeTime: Double = 0.0 )( implicit tx: ProcTxn ) {
+//      ProcHelper.playNewDiff( fadeTime, p )
+      p ~> pDiffThru
+      if( fadeTime > 0 ) xfade( fadeTime ) { p.play } else p.play
+   }
+
+   def replaceTail( p: Proc, fadeTime: Double = 0.0 )( implicit tx: ProcTxn ) {
+      val oldIn   = pDiffThru.audioInput( "in" )
+      val es      = oldIn.edges
+      val newIn   = p.audioInput( "in" )
+      es.foreach { e =>
+         e.out ~/> oldIn
+         e.out ~> newIn
+      }
+      if( fadeTime > 0 ) {
+         p.bypass
+         p ~> pDiffThru
+         p.play
+         xfade( fadeTime ) { p.engage }
+      } else {
+         p ~> pDiffThru
+         p.play
+      }
    }
 
    def waitForAnalysis( minDur: Double )( thunk: => Unit ) {

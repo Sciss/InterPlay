@@ -1,0 +1,24 @@
+((a + b + c) ƒ  + d) ƒ + e + f
+
+::::
+
+val p1 = factory( "dummy" ).make
+val p2 = factory( "O-thru" ).make
+p1 ~> p2
+ProcHelper.playNewDiff( 0.0, p2, p1.dispose( _ ))
+
+val p3 = (gen( "test2" ) {
+   graph { PinkNoise.ar( Seq.fill( 5 )( 0.1 ))}
+}).make
+p3 ~> p2
+p3.play
+
+val p4 = (gen( "test3" ) {
+   graph { LFPulse.ar( Seq.fill( 5 )( Util.exprand( 20, 200 ))) * 0.2 }
+}).make
+p4 ~> p2
+xfade( 10 ) { p4.play }
+
+::::
+
+algo: occasionally dispose branches "too far down the tree"

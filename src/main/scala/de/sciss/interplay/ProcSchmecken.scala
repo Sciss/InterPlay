@@ -50,13 +50,13 @@ object ProcSchmecken extends Process {
    val verbose = true
 
    def init(  implicit tx: ProcTxn ) {
-      val genFact = gen( name ) {
+      val genFact = filter( name ) {
          val pdur    = pScalar( "dur", ParamSpec( MIN_REC, MAX_REC ), MIN_REC )
          val ppos    = pScalar( "pos", ParamSpec( 0, 1 ), 0 )
          val sumPath = new File( REC_PATH, "sum" )
-         graph {
+         graph { in =>
             val recPath    = File.createTempFile( "sum", ".aif", sumPath )
-            val in         = LeakDC.ar( InFeedback.ar( masterBus.index, masterBus.numChannels ))
+//            val in         = LeakDC.ar( InFeedback.ar( masterBus.index, masterBus.numChannels ))
             val b          = bufRecord( recPath.getAbsolutePath, in.numOutputs )
             val dur        = pdur.ir
             val env        = EnvGen.kr( Env.linen( 0.1, dur - 1.1, 1.0 ))
@@ -73,7 +73,8 @@ object ProcSchmecken extends Process {
                   FScape.injectWavelet( recPath )
                }
             }
-            Silent.ar
+//            Silent.ar
+            in // thru
          }
       }
 
@@ -87,7 +88,8 @@ object ProcSchmecken extends Process {
                      val p = genFact.make
                      p.control( "dur" ).v = rrand( MIN_REC, MAX_REC )
                      p.control( "pos" ).v = 0.0
-                     ProcHelper.playNewDiff( 0.0, p )
+//                     ProcHelper.playNewDiff( 0.0, p )
+                     replaceTail( p )
                   }
                }
             }
