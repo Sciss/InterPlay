@@ -135,7 +135,8 @@ object ProcSehen extends Process {
          flush
          af.close
          inform( "ready for murke" )
-//         val doc = FScapeJobs.Murke( inPath.getAbsolutePath, outPath.getAbsolutePath, OutputSpec.aiffInt, Gain.normalized, filter = "daub16", trunc = true )
+error( "NOT YET IMPLEMENTED" )
+//         val doc = FScapeJobs.DrMurke( inPath.getAbsolutePath, outPath.getAbsolutePath, OutputSpec.aiffInt, Gain.normalized, filter = "daub16", trunc = true )
 //         fsc.process( "wavelet", doc ) {
 //            case true   => ProcTxn.spawnAtomic { implicit tx => inject( outPath )}
 //            case false  => println( "Failure!" )
