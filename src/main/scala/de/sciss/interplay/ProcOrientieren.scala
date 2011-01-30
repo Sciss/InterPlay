@@ -47,9 +47,12 @@ object ProcOrientieren extends Process {
    val MAX_GLISS  = 30.0
    val MIN_WAIT   = 30.0
    val MAX_WAIT   = 60.0
+   val MIN_REENTRY= 45.0
+   val MAX_REENTRY= 90.0
+   val ALL_PROB   = 0.333
 
    def init(  implicit tx: ProcTxn ) {
-      val filtFact = filter( name ) {
+      filter( name ) {
 //         val pdur    = pScalar( "dur", ParamSpec( MIN_REC, MAX_REC ), MIN_REC )
          val ppos = pScalar( "pos", ParamSpec( 0, 1 ), 0 )
          graph { in =>
@@ -72,6 +75,7 @@ object ProcOrientieren extends Process {
                ProcTxn.spawnAtomic { implicit tx =>
                   ProcHelper.stopAndDispose( me )
                   stopPlaying
+                  reentry()
                }
             }
             sig: GE
@@ -81,18 +85,31 @@ object ProcOrientieren extends Process {
       val t = exprand( MIN_WAIT, MAX_WAIT )
       ProcTxn.atomic { implicit tx =>
          inform( "Waiting for " + t + "s" )
-         startThinking
-         val tt = delay( t ) {
-            ProcTxn.atomic { implicit tx =>
-               inform( "Playing" )
-               stopThinking
-               if( canReplaceTail ) {
-                  val p = filtFact.make
-                  replaceTail( p )
-                  startPlaying
-               }
+         start( t )
+      }
+   }
+
+   private def start( dlyTime: Double )( implicit tx: ProcTxn ) {
+      startThinking
+      val tt = delay( dlyTime ) {
+         ProcTxn.atomic { implicit tx =>
+            inform( "Playing" )
+            stopThinking
+            val pt = if( coin( ALL_PROB )) ReplaceAll else ReplaceInternal
+            if( canReplaceTail( pt )) {
+               val filtFact = factory( name )
+               val p = filtFact.make
+               replaceTail( p, point = pt )
+               startPlaying
+            } else {
+               reentry( 0.3333 )
             }
          }
       }
+   }
+
+   private def reentry( factor: Double = 1.0 )( implicit tx: ProcTxn ) {
+      inform( "Re-entry" )
+      start( exprand( MIN_REENTRY, MAX_REENTRY ) * factor )
    }
 }

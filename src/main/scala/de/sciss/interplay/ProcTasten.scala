@@ -89,7 +89,7 @@ object ProcTasten extends Process {
    def perform( temp: Similarity.Template, inPath: File ) {
       searchAnalysisM( frameInteg = temp.mat.numFrames,
                        maxResults = 20,
-                       measure = xcorr( temp.mat )( _ )) { res =>
+                       measure = Similarity.xcorr( temp.mat )( _ )) { res =>
          if( verbose ) inform( "search result : " + res )
          if( res.nonEmpty ) {
             process( inPath, res )
@@ -180,19 +180,8 @@ object ProcTasten extends Process {
       Process.addTail( d, 0.1 )
    }
 
-   private def xcorr( a: Similarity.Mat )( b: Array[ Array[ Float ]]) : Float = {
-      var sum = 0.0
-      var x = 0; while( x < a.numFrames ) {
-         val af = a.arr( x )
-         val df = b( x )
-         var y = 0; while( y < a.numChannels ) {
-            sum += af( y ) * df( y )
-         y += 1 }
-      x += 1 }
-      (sum / (a.size - 1)).toFloat
-   }
-
    private def isolateHit( idx: Int ) : (Long, Long) = {
-      (idx * anaWinStep, (idx + 86) * anaWinStep) // XXX TODO
+      val ws = AnalysisBuffer.anaWinStep
+      (idx * ws, (idx + 86) * ws) // XXX TODO
    }
 }

@@ -46,12 +46,17 @@ object Process {
       case d: Do => d.perform
    }}}
 
+   sealed trait ReplacePoint
+   case object ReplaceInternal extends ReplacePoint
+   case object ReplaceLive     extends ReplacePoint
+   case object ReplaceAll      extends ReplacePoint
+
    def init( implicit tx: ProcTxn ) {
       actor.start
       all.foreach( _.init )
    }
 
-   def secsToFrames( secs: Double ) = (secs * (SAMPLE_RATE / anaWinStep)).toInt
+   def secsToFrames( secs: Double ) = (secs * (SAMPLE_RATE / AnalysisBuffer.anaWinStep)).toInt
    def framesToPos( idx: Int )      = idx.toDouble / (anaClientBuf.numFrames - 1)
 
    private lazy val timer = new Timer( true )
@@ -93,10 +98,21 @@ object Process {
       p.addListener( pl )
    }
 
-   def canReplaceTail( implicit tx: ProcTxn ) : Boolean = collInt.audioInput( "in" ).edges.nonEmpty
+   private def replacePoint( p: ReplacePoint )( implicit tx: ProcTxn ) = p match {
+      case ReplaceInternal => collInt
+      case ReplaceLive     => require( liveActive ); collLive
+      case ReplaceAll      => collAll
+   }
 
-   def replaceTail( p: Proc, fadeTime: Double = 0.0 )( implicit tx: ProcTxn ) {
-      val oldIn   = collInt.audioInput( "in" )
+   def liveActive( implicit tx: ProcTxn ) : Boolean = collLive.state.valid
+
+   def canReplaceTail( point: ReplacePoint = ReplaceInternal )( implicit tx: ProcTxn ) : Boolean = {
+      replacePoint( point ).audioInput( "in" ).edges.nonEmpty
+   }
+
+   def replaceTail( p: Proc, fadeTime: Double = 0.0, point: ReplacePoint = ReplaceInternal )( implicit tx: ProcTxn ) {
+      val coll    = replacePoint( point )
+      val oldIn   = coll.audioInput( "in" )
       val es      = oldIn.edges
 //      if( es.isEmpty ) return false
 require( es.nonEmpty )
@@ -107,11 +123,11 @@ require( es.nonEmpty )
       }
       if( fadeTime > 0 ) {
          p.bypass
-         p ~> collInt
+         p ~> coll
          p.play
          xfade( fadeTime ) { p.engage }
       } else {
-         p ~> collInt
+         p ~> coll
          p.play
       }
       true
@@ -219,14 +235,15 @@ require( es.nonEmpty )
       }
    }
 
-   def searchAnalysisM( frameInteg: Int, maxResults: Int = 20, measure: Array[ Array[ Float ]] => Float )
+   def searchAnalysisM( frameInteg: Int, maxResults: Int = 20, measure: Similarity.Mat => Float )
                       ( fun: ISortedSet[ Sample ] => Unit, rotateBuf: Boolean = false ) {
       require( maxResults > 0, "maxResults must be > 0, but is " + maxResults )
       spawn {
          inform( "searchAnalysisM started" )
          val buf        = anaClientBuf
          val numChannels= buf.numChannels
-         val frames     = Array.ofDim[ Float ]( buf.numFrames, numChannels )
+//         val frames     = Array.ofDim[ Float ]( frameInteg, numChannels )
+         val frames     = Similarity.Mat( frameInteg, numChannels )
          val numFrames  = buf.framesWritten - frameInteg + 1
          var res        = ISortedSet.empty[ Sample ]( sampleOrd )
          var resCnt     = 0
@@ -244,7 +261,7 @@ require( es.nonEmpty )
 
          if( numFrames > 0 ) {
             var x = 0; while( x < frameInteg ) {
-               buf.getFrame( 0, frames( x ))
+               buf.getFrame( 0, frames.arr( x ))
             x += 1 }
             karlheinz( 0 )
          }
@@ -252,16 +269,16 @@ require( es.nonEmpty )
 //            val fm = frameMeasure( buf.getFrame( off, chanBuf ))
             if( rotateBuf ) {
                var y = 0; while( y < numChannels ) {
-                  var prev = frames( 0 )( y )
+                  var prev = frames.arr( 0 )( y )
                   var x = frameIntegM; while( x >= 0 ) {   // ouch....
-                     val tmp = frames( x )( y )
-                     frames( x )( y ) = prev
+                     val tmp = frames.arr( x )( y )
+                     frames.arr( x )( y ) = prev
                      prev = tmp
                   x -= 1 }
                y += 1 }
-               buf.getFrame( off, frames( frameIntegM ))
+               buf.getFrame( off, frames.arr( frameIntegM ))
             } else {
-               buf.getFrame( off, frames( (off - 1) % frameInteg ))
+               buf.getFrame( off, frames.arr( (off - 1) % frameInteg ))
             }
             karlheinz( off )
          off += 1 }

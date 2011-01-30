@@ -45,6 +45,7 @@ object ProcSchmecken extends Process {
    val MAX_WAIT   = 30.0
    val MIN_REC    = 10.0
    val MAX_REC    = 45.0
+   val ALL_PROB   = 0.333
 
    val name    = "p-schmeck"
    val verbose = true
@@ -88,11 +89,12 @@ object ProcSchmecken extends Process {
                   val tt = delay( t ) {
                      ProcTxn.atomic { implicit tx =>
                         stopThinking
-                        if( canReplaceTail ) {
+                        val pt = if( coin( ALL_PROB )) ReplaceAll else ReplaceInternal
+                        if( canReplaceTail( pt )) {
                            val p = genFact.make
                            p.control( "dur" ).v = rrand( MIN_REC, MAX_REC )
                            p.control( "pos" ).v = 0.0
-                           replaceTail( p )
+                           replaceTail( p, point = pt )
                            startPlaying    // XXX stopPlaying missing
                         }
                      }

@@ -43,12 +43,9 @@ import java.util.Locale
 
 object SoundProcesses {
    val diskBufSize   = 32768
-   val anaFFTSize    = 1024
-   val anaFFTOver    = 2
-   val anaWinStep    = anaFFTSize / anaFFTOver
-
    val liveDur = 3.0   // minutes
 
+   import AnalysisBuffer.{anaChans, anaWinStep}
    val maxLiveAnaFr   = {
       val secs = liveDur * 60
       val fr0  = (secs * SAMPLE_RATE + 0.5).toLong
@@ -56,8 +53,6 @@ object SoundProcesses {
       assert( f1 % anaWinStep == 0 )
       (f1 / anaWinStep).toInt
    }
-   val numMelCoeffs     = 13
-   val anaChans         = numMelCoeffs
    val maxLiveFrames    = maxLiveAnaFr * anaWinStep
    val maxLiveDur       = maxLiveFrames / SAMPLE_RATE // 10.0 * 60
    var liveBuf: Buffer  = _
@@ -103,16 +98,7 @@ object SoundProcesses {
          val cntUpd     = math.max( 1, (maxLiveAnaFr / maxLiveDur).toInt )
          val df = new SimpleDateFormat( "'live'yyMMdd'_'HHmmss'.irc'", Locale.US )
 
-         val normMins = Array(
-            -0.47940505f, -0.5093739f,  -0.22388703f, -0.14356878f,  -0.057697684f, -0.10735649f,
-            -0.052598f,   -0.060314894f, 0.0f,        -0.043890893f, -0.028240174f, -0.010011315f, -0.07498413f )
-         val normMaxs = Array(
-             1.9825932f,   1.085732f,    0.9282071f,   0.76045084f,   0.79747903f,   0.6042967f,
-             0.631527f,    0.6167193f,   0.6120175f,   0.61750406f,   0.62154025f,   0.5441396f, 0.5421591f )
-         val normAdd = normMins.map( d => -d )
-         val normMul = normMins.zip( normMaxs ).map( tup => 1.0f / (tup._2 - tup._1) )
-
-         assert( normMins.size == numMelCoeffs && normMaxs.size == numMelCoeffs )
+         import AnalysisBuffer._
 
          graph {
             val in: GE  = if( pmode.v == 0 ) {
@@ -139,26 +125,26 @@ object SoundProcesses {
 
 //            SendReply.kr( fftTrig, coeffs, "/ana" )
             val me = Proc.local
-            fftTrig.react( fftCnt +: onsets +: coeffs.outputs ) { data => data
-               val floats: Array[ Float ] = data.drop( 2 ).map( _.toFloat )( collection.breakOut )
-               var i = 0; while( i < numMelCoeffs ) {
-                  floats( i ) = (floats( i ) + normAdd( i )) * normMul( i )
-               i += 1 }
-               val cnt     = data( 0 ).toInt - 1
-               val onset   = data( 1 ) > 0
+            val frame = anaClientBuf.emptyFrame
+            fftTrig.react( fftCnt +: onsets +: coeffs.outputs ) { data =>
+               val iter    = data.iterator
+               val cnt     = iter.next.toInt - 1
+               val onset   = iter.next > 0
                if( cnt < maxLiveAnaFr ) {
-//println( "position " + (cnt * anaChans) + " ; floats.size " + floats.size )
-//                  anaClientBuf.position( cnt * anaChans )
-//                  anaClientBuf.put( floats )
-                  anaClientBuf.setFrame( cnt, floats )
+                  var i = 0; while( i < numMelCoeffs ) {
+                     frame( i ) = (iter.next.toFloat + normAdd( i )) * normMul( i )
+                  i += 1 }
+                  anaClientBuf.setFrame( cnt, frame )
                   if( onset ) anaMarkers.add( cnt )
                   if( cnt % cntUpd == 0 ) ProcTxn.atomic { implicit tx =>
                      me.control( "pos" ).v = cnt.toDouble / maxLiveAnaFr
                   }
                } else {
-                  ProcTxn.atomic { implicit tx =>
-                     me.stop
-                     me.control( "pos" ).v = 1.0
+                  ProcTxn.spawnAtomic { implicit tx =>
+                     Process.removeAndDispose( collLive, 5.0 )
+println( "STOPPENDORFER" )
+//                     me.stop
+//                     me.control( "pos" ).v = 1.0
                   }
                }
             }

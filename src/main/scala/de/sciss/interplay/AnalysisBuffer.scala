@@ -34,6 +34,23 @@ import de.sciss.synth.Model
 object AnalysisBuffer {
    case class FrameUpdated( idx: Int, lastFrame: Boolean )
    type Frame = Array[ Float ]
+
+   val anaFFTSize       = 1024
+   val anaFFTOver       = 2
+   val anaWinStep       = anaFFTSize / anaFFTOver
+   val numMelCoeffs     = 13
+   val anaChans         = numMelCoeffs
+
+   private val normMins = Array(
+      -0.47940505f, -0.5093739f,  -0.22388703f, -0.14356878f,  -0.057697684f, -0.10735649f,
+      -0.052598f,   -0.060314894f, 0.0f,        -0.043890893f, -0.028240174f, -0.010011315f, -0.07498413f )
+   private val normMaxs = Array(
+       1.9825932f,   1.085732f,    0.9282071f,   0.76045084f,   0.79747903f,   0.6042967f,
+       0.631527f,    0.6167193f,   0.6120175f,   0.61750406f,   0.62154025f,   0.5441396f, 0.5421591f )
+   val normAdd = normMins.map( d => -d )
+   val normMul = normMins.zip( normMaxs ).map( tup => 1.0f / (tup._2 - tup._1) )
+
+   assert( normMins.size == numMelCoeffs && normMaxs.size == numMelCoeffs )
 }
 
 class AnalysisBuffer( val numFrames: Int, val numChannels: Int, val sampleRate: Double ) extends Model {
