@@ -1,5 +1,5 @@
 /*
- *  Tasten.scala
+ *  ProcTasten.scala
  *  (InterPlay)
  *
  *  Copyright (c) 2011 Hanns Holger Rutz. All rights reserved.
@@ -49,8 +49,10 @@ object ProcTasten extends Process {
    val MAX_WAIT      = 120.0
 //   val INIT_THRESH   = 0.5f
 
-   private val orgRef = Ref( Map.empty[ Proc, Org ])
+   val MIN_REENTRY   = 60.0
+   val MAX_REENTRY   = 90.0
 
+   private val orgRef = Ref( Map.empty[ Proc, Org ])
    private case class Org( gen: Proc, diff: Proc, path: String )
 
    def init(  implicit tx: ProcTxn ) {
@@ -72,6 +74,10 @@ object ProcTasten extends Process {
          }
       }
 
+      start
+   }
+
+   private def start( implicit tx: ProcTxn ) {
       val waitTime   = rrand( MIN_WAIT, MAX_WAIT )
       inform( "waitForAnalysis " + waitTime )
       startThinking
@@ -80,7 +86,7 @@ object ProcTasten extends Process {
          playPath match {
             case Some( inPath ) => perform( temp, inPath )
             case None => {
-               ProcTxn.atomic { implicit tx => stopThinking }
+               ProcTxn.spawnAtomic { implicit tx => stopThinking } // XXX spawn!
             }
          }
       }
@@ -153,6 +159,7 @@ object ProcTasten extends Process {
                         }
 //                        FScape.inject( new File( bleach.out ), "O-one" )
                         inject( bleach.out )
+                        reentry
                      }
                      delay( exprand( 0.2, 1.5 ))( gugu( tail, false ))
                   case _ =>
@@ -164,6 +171,11 @@ object ProcTasten extends Process {
             println( name + ": FScape failed!" )
          }
       }
+   }
+
+   private def reentry {
+      val dlyTime = rrand( MIN_REENTRY, MAX_REENTRY )
+      delay( dlyTime )( ProcTxn.atomic( start( _ )))
    }
 
    private def inject( path: String )( implicit tx: ProcTxn ) {

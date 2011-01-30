@@ -33,7 +33,7 @@ import de.sciss.fscape.FScapeJobs
 import InterPlay._
 import SoundProcesses._
 import de.sciss.synth
-import synth.io.{AudioFile, AudioFileSpec}
+import synth.io.{SampleFormat, AudioFile, AudioFileSpec}
 import synth.proc.{ParamSpec, ProcDemiurg, Proc, ProcTxn, DSL}
 import de.sciss.interplay.{Process => IPProcess}
 
@@ -95,9 +95,10 @@ object FScape {
 //      ProcTxn.spawnAtomic { implicit tx => xfade( 0.1 ) { d.play }}
    }
 
-   def createTempAudioFile( src: AudioFile ) : AudioFile = {
+   def createTempAudioFile( src: AudioFile, sampleFormat: Option[ SampleFormat ] = None ) : AudioFile = {
       val f    = File.createTempFile( "tmp", ".aif" )
-      val spec = AudioFileSpec( numChannels = src.numChannels, sampleRate = src.sampleRate )
+      val spec = AudioFileSpec( numChannels = src.numChannels, sampleRate = src.sampleRate,
+         sampleFormat = sampleFormat.getOrElse( src.sampleFormat ))
       AudioFile.openWrite( f, spec )
    }
 }

@@ -36,6 +36,8 @@ import actors.Actor
 import java.util.{TimerTask, Timer}
 import de.sciss.synth.proc.{DSL, Proc, TxnModel, Ref, ProcTxn}
 import DSL._
+import de.sciss.synth.io.AudioFile
+import java.io.IOException
 
 object Process {
    val verbose = true
@@ -115,7 +117,7 @@ object Process {
       val oldIn   = coll.audioInput( "in" )
       val es      = oldIn.edges
 //      if( es.isEmpty ) return false
-require( es.nonEmpty )
+      require( es.nonEmpty )
       val newIn   = p.audioInput( "in" )
       es.foreach { e =>
          e.out ~/> oldIn
@@ -187,6 +189,62 @@ require( es.nonEmpty )
    }
 
    private def inform( what: => String ) = if( verbose ) println( "Process : " + what )
+
+   /**
+    * @return  the number of corresponding _analysis_ frames (e.g. at sr/512) available right now
+    *    from both the AnalysisBuffer and the live soundfile. Zero if the soundfile cannot be accessed
+    */
+   def availableLiveRecordingFrames : Int = {
+      playPath.map { inPath =>
+         try {
+            val spec = audioFileSpec( inPath.getAbsolutePath() ) // AudioFile.readSpec( inPath )
+            math.min( anaClientBuf.framesWritten, spec.numFrames / AnalysisBuffer.anaWinStep ).toInt
+         } catch {
+            case e => 0
+         }
+      } getOrElse 0
+   }
+
+   private var truncCache = Map.empty[ Int, String ]
+
+   /**
+    * @param   done  is called with an Option to the audiofile name. None if an error occured
+    */
+   def truncateLiveRecording( numAnaFrames: Int )( done: Option[ String ] => Unit ) {
+      spawn {
+         val pathO: Option[ String ] = truncCache.get( numAnaFrames ).orElse( playPath.flatMap( inPath => try {
+            val afIn          = AudioFile.openRead( inPath )
+            val numFrames     = numAnaFrames.toLong * AnalysisBuffer.anaWinStep
+            if( numFrames > afIn.numFrames ) throw new IOException( "Not enough available frames" )
+            val outF          = if( numFrames == afIn.numFrames ) {
+               inPath
+            } else {
+               val afOut      = FScape.createTempAudioFile( afIn )
+               val buf        = afIn.frameBuffer( 8192 )
+               var remaining  = numFrames
+               while( remaining > 0L ) {
+                  val chunkLen   = math.min( 8192, remaining ).toInt
+                  afIn.readFrames( buf, 0, chunkLen )
+                  afOut.writeFrames( buf, 0, chunkLen )
+                  remaining -= chunkLen
+               }
+               afOut.close
+               afOut.file.get
+            }
+            afIn.close
+            val outPath = outF.getAbsolutePath()
+            truncCache += numAnaFrames -> outPath
+            Some( outPath )
+
+         } catch {
+            case e =>
+               inform( "Failed to copy live rec file. Reason:" )
+               e.printStackTrace()
+               None
+         }).orElse( None ))
+         done( pathO )
+      }
+   }
 
    def searchAnalysis( timeInteg: Double, maxResults: Int = 20, frameMeasure: Array[ Float ] => Float,
                        integMeasure: Array[ Float ] => Float, rotateBuf: Boolean = false )
