@@ -35,6 +35,7 @@ import de.sciss.synth._
 import proc._
 import ugen._
 import DSL._
+import collection.breakOut
 
 object ProcGleichgewichten extends Process {
    import Process._
@@ -50,8 +51,14 @@ object ProcGleichgewichten extends Process {
    val MIN_FADE      = 1.0
    val MAX_FADE      = 10.0
 
+   val MIN_PLAY      = 60.0
+   val MAX_PLAY      = 120.0
+
+   val MIN_REENTRY   = 45.0
+   val MAX_REENTRY   = 90.0
+
    def init(  implicit tx: ProcTxn ) {
-      val genFact = gen( name ) {
+      gen( name ) {
          val ppos    = pAudio( "pos", ParamSpec( 0, 1 ), 0 )
          val pdur    = pAudio( "dur", ParamSpec( MIN_STEADY, MAX_STEADY ), MIN_STEADY )
          val pspeed  = pAudio( "speed", ParamSpec( 1.0/8, 8, ExpWarp ), 1 )
@@ -68,39 +75,58 @@ object ProcGleichgewichten extends Process {
          }
       }
 
-      val diffFact = factory( "O-one" )
+      start
+   }
 
-      val steady     = rrand( MIN_STEADY, MAX_STEADY )
+   def start( implicit tx: ProcTxn ) {
       val waitTime   = rrand( MIN_WAIT, MAX_WAIT )
       inform( "waitForAnalysis " + waitTime )
-
       startThinking
-      waitForAnalysis( waitTime ) {
-         inform( "searchAnalysis " + steady )
-         searchAnalysis( steady,
-            maxResults = MASTER_NUMCHANNELS,
-            frameMeasure = minFlat( _ ), integMeasure = worstFlat( _ )) { res =>
+      waitForAnalysis( waitTime )( analysisReady )
+   }
 
-            inform( "result " + res )
-            ProcTxn.spawnAtomic { implicit tx =>
-               stopThinking
-               startPlaying
-               res.zipWithIndex.foreach { tup =>
-                  val (smp, idx) = tup
-                  val p = genFact.make
-                  p.control( "dur" ).v = exprand( MIN_STEADY, steady )
-                  // DDD p.control( "speed" ).v = fluctuate( phase )
-      //               println( "juuu. measure = " + smp.measure )
-                  // measure is typically between 0.0 (maximally flat) and 0.5
-                  p.control( "pos" ).v = framesToPos( smp.idx )
-                  val d = diffFact.make
-                  d.control( "idx" ).v = idx
-                  p ~> d
-                  addTail( d, rrand( MIN_FADE, MAX_FADE ))
-               }
-            }
+   private val tail = Ref( List.empty[ Proc ])
+
+   private def analysisReady {
+      val steady     = rrand( MIN_STEADY, MAX_STEADY )
+      inform( "searchAnalysis " + steady )
+      searchAnalysis( steady,
+         maxResults = MASTER_NUMCHANNELS,
+         frameMeasure = minFlat( _ ), integMeasure = worstFlat( _ )) { res =>
+
+         inform( "result " + res )
+         ProcTxn.spawnAtomic { implicit tx =>
+            stopThinking
+            startPlaying
+            tail.set( res.zipWithIndex.map( tup => {
+               val (smp, idx) = tup
+               val genFact = factory( name )
+               val p = genFact.make
+               p.control( "dur" ).v = exprand( MIN_STEADY, steady )
+               // DDD p.control( "speed" ).v = fluctuate( phase )
+   //               println( "juuu. measure = " + smp.measure )
+               // measure is typically between 0.0 (maximally flat) and 0.5
+               p.control( "pos" ).v = framesToPos( smp.idx )
+               val diffFact = factory( "O-one" )
+               val d = diffFact.make
+               d.control( "idx" ).v = idx
+               p ~> d
+               addTail( d, rrand( MIN_FADE, MAX_FADE ))
+               d
+            })( breakOut ))
+
+            val dlyTime = if( res.isEmpty ) 0.0 else exprand( MIN_PLAY, MAX_PLAY )
+            inform( "Playing for " + dlyTime + "s" )
+            delay( dlyTime )( ProcTxn.atomic( reentry( _ )))
          }
       }
+   }
+
+   private def reentry( implicit tx: ProcTxn ) {
+      inform( "Re-entry" )
+      tail.swap( Nil ).foreach( removeAndDispose( _, rrand( MIN_FADE, MAX_FADE )))
+      stopPlaying
+      delay( exprand( MIN_REENTRY, MAX_REENTRY ))( ProcTxn.atomic( start( _ )))
    }
 
    private def minFlat( buf: Array[ Float ]) : Float = {

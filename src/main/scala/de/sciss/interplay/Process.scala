@@ -103,6 +103,7 @@ require( es.nonEmpty )
 
    def removeAndDispose( p: Proc, fadeTime: Double = 0.0 )( implicit tx: ProcTxn ) {
       if( fadeTime > 0 ) xfade( fadeTime ) { p.stop } else p.stop
+if( fadeTime > 0 ) println( "Wowo " + p.state.fading )
       ProcHelper.whenFadeDone( p ) { implicit tx =>
          def flonky( p: Proc ) {
             p.audioOutputs.flatMap( _.edges ).foreach( e => e.out ~/> e.in )

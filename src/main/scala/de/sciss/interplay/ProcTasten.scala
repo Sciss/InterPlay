@@ -28,12 +28,14 @@
 
 package de.sciss.interplay
 
-import de.sciss.synth.proc.ProcTxn
+import de.sciss.synth._
+import proc._
+import ugen._
+import DSL._
 import SoundProcesses._
 import Util._
-import de.sciss.synth.io.AudioFile
+import io.AudioFile
 import java.io.File
-import de.sciss.interplay.Similarity.Mat
 import de.sciss.fscape.FScapeJobs
 import collection.breakOut
 
@@ -47,7 +49,29 @@ object ProcTasten extends Process {
    val MAX_WAIT      = 120.0
 //   val INIT_THRESH   = 0.5f
 
+   private val orgRef = Ref( Map.empty[ Proc, Org ])
+
+   private case class Org( gen: Proc, diff: Proc, path: String )
+
    def init(  implicit tx: ProcTxn ) {
+      gen( name ) {
+         val pdur = pScalar( "dur", ParamSpec( 1, 240 ), 20 )
+         graph {
+            val me   = Proc.local
+            val org  = ProcTxn.atomic( orgRef()( _ ))( me )
+            val spec = audioFileSpec( org.path )
+            val sig  = DiskIn.ar( spec.numChannels, bufCue( org.path ).id )
+            Done.kr( Line.kr( 0, 0, pdur.ir )).react {
+               ProcTxn.spawnAtomic { implicit tx =>
+                  orgRef.transform( _ - me )
+//                  ProcHelper.stopAndDispose( d, 0.1, postFun = tx => ProcHelper.stopAndDispose( g )( tx ))
+                  Process.removeAndDispose( org.diff, 0.1 )
+               }
+            }
+            sig
+         }
+      }
+
       val waitTime   = rrand( MIN_WAIT, MAX_WAIT )
       inform( "waitForAnalysis " + waitTime )
       startThinking
@@ -127,7 +151,8 @@ object ProcTasten extends Process {
                            stopThinking
                            startPlaying
                         }
-                        FScape.inject( new File( bleach.out ), "O-one" )
+//                        FScape.inject( new File( bleach.out ), "O-one" )
+                        inject( bleach.out )
                      }
                      delay( exprand( 0.2, 1.5 ))( gugu( tail, false ))
                   case _ =>
@@ -141,7 +166,21 @@ object ProcTasten extends Process {
       }
    }
 
-   private def xcorr( a: Mat )( b: Array[ Array[ Float ]]) : Float = {
+   private def inject( path: String )( implicit tx: ProcTxn ) {
+//      cnt += 1
+      val spec = audioFileSpec( path ) // AudioFile.readSpec( path )
+      val d = factory( "O-one" ).make
+      val g = factory( name ).make
+      val org  = Org( g, d, path )
+      orgRef.transform( _ + (g -> org) )
+      val dch = d.control( "idx" )
+      dch.v = dch.spec.map( Util.rand( 1.0 ))
+      g.control( "dur" ).v = spec.numFrames / spec.sampleRate
+      g ~> d
+      Process.addTail( d, 0.1 )
+   }
+
+   private def xcorr( a: Similarity.Mat )( b: Array[ Array[ Float ]]) : Float = {
       var sum = 0.0
       var x = 0; while( x < a.numFrames ) {
          val af = a.arr( x )
