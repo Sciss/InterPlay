@@ -68,7 +68,29 @@ object Process {
 //      ProcHelper.playNewDiff( fadeTime, p )
       p ~> collInt
 //      if( fadeTime > 0 ) xfade( fadeTime ) { p.play } else p.play
-      ProcHelper.playNewDiff( p, fadeTime )
+//      ProcHelper.playNewDiff( p, fadeTime )
+
+      val con = p.control( "amp" )
+      val amp = con.v
+
+      lazy val pl: Proc.Listener = new Proc.Listener {
+         def updated( u: Proc.Update ) {
+            if( u.audioBusesConnected.find( b => (b.sourceVertex == p) && (b.out.name == "out") ).isDefined ) {
+                // why we need spawn?? wolkenpumpe doesn't get the new state update otherwise. why?? XXX
+               ProcTxn.spawnAtomic { implicit tx =>
+                  p.removeListener( pl )
+//                  if( fadeTime > 0 ) xfade( fadeTime ) { p.play } else p.play
+                  if( fadeTime > 0 ) {
+                     con.v = 0
+                     p.play
+                     glide( fadeTime ) { con.v = amp }
+                  } else p.play
+//                  postFun( tx )
+               }
+            }
+         }
+      }
+      p.addListener( pl )
    }
 
    def canReplaceTail( implicit tx: ProcTxn ) : Boolean = collInt.audioInput( "in" ).edges.nonEmpty
@@ -101,10 +123,20 @@ require( es.nonEmpty )
 //      res
 //   }
 
+
+   def timeString = (new java.util.Date()).toString
+
    def removeAndDispose( p: Proc, fadeTime: Double = 0.0 )( implicit tx: ProcTxn ) {
-      if( fadeTime > 0 ) xfade( fadeTime ) { p.stop } else p.stop
-if( fadeTime > 0 ) println( "Wowo " + p.state.fading )
-      ProcHelper.whenFadeDone( p ) { implicit tx =>
+//      if( fadeTime > 0 ) xfade( fadeTime ) { p.stop } else p.stop
+      if( fadeTime > 0 ) glide( fadeTime ) {
+//         println( "old cv " + p.control( "amp" ).cv )
+         p.control( "amp" ).v = 0
+//         println( "new cv " + p.control( "amp" ).cv )
+      }
+//if( fadeTime > 0 ) println( "Wowo " + p.hashCode + " - " + p.control( "amp" ).cv.mapping.isEmpty+ " ; target " + p.control( "amp" ).cv.target + "; glidetime " + fadeTime + " ; " + timeString )
+//      ProcHelper.whenFadeDone( p ) { implicit tx => }
+      ProcHelper.whenGlideDone( p, "amp" ) { implicit tx =>
+//         println( "glide done: " + p.hashCode + " : " + timeString )
          def flonky( p: Proc ) {
             p.audioOutputs.flatMap( _.edges ).foreach( e => e.out ~/> e.in )
             val srcs: Set[ Proc ] = p.audioInputs.flatMap( _.edges ).map( e => {

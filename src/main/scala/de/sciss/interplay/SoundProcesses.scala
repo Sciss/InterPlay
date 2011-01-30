@@ -644,8 +644,9 @@ object SoundProcesses {
       }
 
       val diffAll = filter( "O-all" ) {
-         val pamp  = pAudio( "amp", ParamSpec( 0.01, 10, ExpWarp ), 1 )
+//         val pamp  = pAudio( "amp", ParamSpec( 0.01, 10, ExpWarp ), 1 )
 //         val pout  = pAudioOut( "out", None )
+         val pamp  = pAudio( "amp", ParamSpec( 0, 10 ), 1 )
 
          graph { in =>
             val sig          = (in * Lag.ar( pamp.ar, 0.1 )).outputs
@@ -658,7 +659,8 @@ object SoundProcesses {
       }
 
       filter( "O-one" ) {
-         val pamp  = pAudio( "amp", ParamSpec( 0.01, 10, ExpWarp ), 1 )
+//         val pamp  = pAudio( "amp", ParamSpec( 0.01, 10, ExpWarp ), 1 )
+         val pamp  = pAudio( "amp", ParamSpec( 0, 10 ), 1 )
          val pidx  = pAudio( "idx", ParamSpec( 0, MASTER_NUMCHANNELS - 1, LinWarp, 1 ), 0 )
 
          graph { in =>
