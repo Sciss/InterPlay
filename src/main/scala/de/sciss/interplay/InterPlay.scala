@@ -72,6 +72,8 @@ object InterPlay {
    lazy val TEMPLATE_PATH  = new File( BASE_PATH, "templates" )
    lazy val FSC_PATH       = new File( REC_PATH, "fsc" )
 
+   val USE_MIDI            = true
+
    val LIVE_MODE           = 1
    var LIVE_FILE           = Some( "live110125_143645.irc" ) // Some( "live110128_113557.irc" ) // Some( "live110128_121639.irc" )
 
@@ -249,6 +251,8 @@ object InterPlay {
 //            SemiNuages.meta.init
 //         }
       }
+
+      if( USE_MIDI ) Midi.init( f.panel )
    }
 
    def quit { System.exit( 0 )}
