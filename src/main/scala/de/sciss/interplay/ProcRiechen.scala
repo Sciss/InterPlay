@@ -17,10 +17,11 @@ object ProcRiechen extends Process {
 
 //   val MIN_WAIT            = 60.0
 //   val MAX_WAIT            = 120.0
-val MIN_WAIT            = 60.0
-val MAX_WAIT            = 60.0
+val MIN_WAIT            = 10.0
+val MAX_WAIT            = 10.0
 
-   val LIVE_PROB           = 0.175
+//   val LIVE_PROB           = 0.175
+val LIVE_PROB           = 1.0 // force it
    val INT_PROB            = 0.75
 
    private val catchName   = name + "-catch"
@@ -55,8 +56,12 @@ val MAX_WAIT            = 60.0
          val pin2  = pAudioIn( "in2" )
          graph { in1 =>
             val in2  = pin2.ar
+            val norm = Normalizer.ar( in2, dur = 0.02 )
+//            val norm = in2 * 2 * PeakFollower.ar( in2, 2 ).max( 0.01 ).reciprocal   // hmmm....
+//            val rms  = LagUD.ar( in2.squared.squared, 0.1, 1.0 )
+//            val norm = in2 * rms.max( 0.01 ).reciprocal
             val Seq(re1, im1) = Hilbert.ar( in1 ).outputs
-            val Seq(re2, im2) = Hilbert.ar( in2 ).outputs
+            val Seq(re2, im2) = Hilbert.ar( norm ).outputs
             re1 * re2 - im1 * im2
          }
       }

@@ -41,8 +41,8 @@ import java.io.IOException
 
 object Process {
    val verbose = true
-   val all = List( ProcSehen, ProcHoeren, ProcRiechen, ProcSchmecken, ProcTasten, ProcOrientieren, ProcGleichgewichten )
-//   val all = List( ProcRiechen )
+//   val all = List( ProcSehen, ProcHoeren, ProcRiechen, ProcSchmecken, ProcTasten, ProcOrientieren, ProcGleichgewichten )
+   val all = List( ProcRiechen )
 //   lazy val map: Map[ String, Process ] = all.map( p => p.name -> p )( collection.breakOut )
 
    private val actor = new Actor { def act = loop { react {
@@ -151,14 +151,14 @@ object Process {
       val oldIn   = coll.audioInput( "in" )
       val es      = oldIn.edges
 
-val debug = false // pin != pout
-if( debug ) inform( "replace: pt = " + point + " ; oldIn.bus " + oldIn.bus )
+//val debug = false // pin != pout
+//if( debug ) inform( "replace: pt = " + point + " ; oldIn.bus " + oldIn.bus )
 
 //      if( es.isEmpty ) return false
       require( es.nonEmpty )
       val newIn   = pin.audioInput( "in" )
       es.foreach { e =>
-if( debug ) inform( "replace: connecting output " + e.out.name + " with bus " + e.out.bus )
+//if( debug ) inform( "replace: connecting output " + e.out.name + " with bus " + e.out.bus )
          e.out ~/> oldIn
          e.out ~> newIn
       }

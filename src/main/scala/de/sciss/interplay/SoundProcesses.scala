@@ -783,8 +783,10 @@ println( "STOPPENDORFER" )
             stage( stage( stage( flt0 )))
          }
       }).make
-      collLive = diffAll.make // factory( "D-all" ).make
-      pLive ~> pLiveHlb ~> collLive ~> collAll
+//      collLive = diffAll.make // factory( "D-all" ).make
+      val pLiveDiff = diffAll.make // factory( "D-all" ).make
+      collLive = diffThru.make
+      pLive ~> pLiveHlb ~> pLiveDiff ~> collLive ~> collAll
 
       val dfHP = SynthDef( "hp-mix" ) {
          val sig = In.ar( masterBus.index, masterBus.numChannels )
