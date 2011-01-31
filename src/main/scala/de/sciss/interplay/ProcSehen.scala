@@ -46,10 +46,10 @@ object ProcSehen extends Process {
    val verbose       = true
 
    val ANA_DUR       = 1.0
-//   val MIN_WAIT      = 60.0
-//   val MAX_WAIT      = 120.0
-val MIN_WAIT      = 30.0
-val MAX_WAIT      = 30.0
+   val MIN_WAIT      = 60.0
+   val MAX_WAIT      = 120.0
+//val MIN_WAIT      = 30.0
+//val MAX_WAIT      = 30.0
 
    val LIVE_PROB     = 0.3333
    val INT_PROB      = 0.3333

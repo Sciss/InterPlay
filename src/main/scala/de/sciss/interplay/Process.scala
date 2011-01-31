@@ -42,6 +42,7 @@ import java.io.IOException
 object Process {
    val verbose = true
    val all = List( ProcSehen, ProcHoeren, ProcRiechen, ProcSchmecken, ProcTasten, ProcOrientieren, ProcGleichgewichten )
+//   val all = List( ProcRiechen )
 //   lazy val map: Map[ String, Process ] = all.map( p => p.name -> p )( collection.breakOut )
 
    private val actor = new Actor { def act = loop { react {
@@ -61,8 +62,6 @@ object Process {
    def secsToFrames( secs: Double ) = (secs * (SAMPLE_RATE / AnalysisBuffer.anaWinStep)).toInt
    def framesToPos( idx: Int )      = idx.toDouble / (anaClientBuf.numFrames - 1)
 
-   private lazy val timer = new Timer( true )
-
    def afterCommit( tx: ProcTxn )( thunk: => Unit ) {
       require( tx.isActive, "Juhuuu. tx not active anymore" )
       tx.afterCommit( _ => thunk )
@@ -73,6 +72,7 @@ object Process {
          val res = new TimerTask {
             def run = thunk
          }
+         val timer = new Timer( true )
          timer.schedule( res, (dur * 1000).toLong )
       }
 //      res
@@ -120,24 +120,60 @@ object Process {
    }
 
    def replaceTail( p: Proc, fadeTime: Double = 0.0, point: ReplacePoint = ReplaceInternal )( implicit tx: ProcTxn ) {
+      replaceTailChain( p, p, p :: Nil, if( fadeTime > 0 ) Some( fadeTime :: Nil ) else None, point )
+   }
+
+//   def replaceTail( p: Proc, fadeTime: Double = 0.0, point: ReplacePoint = ReplaceInternal )( implicit tx: ProcTxn ) {
+//      val coll    = replacePoint( point )
+//      val oldIn   = coll.audioInput( "in" )
+//      val es      = oldIn.edges
+////      if( es.isEmpty ) return false
+//      require( es.nonEmpty )
+//      val newIn   = p.audioInput( "in" )
+//      es.foreach { e =>
+//         e.out ~/> oldIn
+//         e.out ~> newIn
+//      }
+//      if( fadeTime > 0 ) {
+//         p.bypass
+//         p ~> coll
+//         p.play
+//         xfade( fadeTime ) { p.engage }
+//      } else {
+//         p ~> coll
+//         p.play
+//      }
+//      true
+//   }
+
+   def replaceTailChain( pin: Proc, pout: Proc, pflt: Seq[ Proc ], fadeTimes: Option[ Seq[ Double ]] = None, point: ReplacePoint = ReplaceInternal )( implicit tx: ProcTxn ) {
       val coll    = replacePoint( point )
       val oldIn   = coll.audioInput( "in" )
       val es      = oldIn.edges
+
+val debug = false // pin != pout
+if( debug ) inform( "replace: pt = " + point + " ; oldIn.bus " + oldIn.bus )
+
 //      if( es.isEmpty ) return false
       require( es.nonEmpty )
-      val newIn   = p.audioInput( "in" )
+      val newIn   = pin.audioInput( "in" )
       es.foreach { e =>
+if( debug ) inform( "replace: connecting output " + e.out.name + " with bus " + e.out.bus )
          e.out ~/> oldIn
          e.out ~> newIn
       }
-      if( fadeTime > 0 ) {
-         p.bypass
-         p ~> coll
-         p.play
-         xfade( fadeTime ) { p.engage }
-      } else {
-         p ~> coll
-         p.play
+      fadeTimes match {
+         case Some( fdts ) =>
+            pflt.foreach( _.bypass )
+            pout ~> coll
+            pout.play
+            pflt.zip( fdts ).foreach { tup =>
+               val (p, fdt) =  tup
+               xfade( fdt ) { p.engage }
+            }
+         case None =>
+            pout ~> coll
+            pout.play
       }
       true
    }

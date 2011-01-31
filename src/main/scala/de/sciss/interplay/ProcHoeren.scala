@@ -6,5 +6,7 @@ object ProcHoeren extends Process {
    val name    = "p-hoeren"
    val verbose = false
 
-   def init(  implicit tx: ProcTxn ) {}
+   def init(  implicit tx: ProcTxn ) {
+
+   }
 }

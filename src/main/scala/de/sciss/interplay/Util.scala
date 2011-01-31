@@ -29,6 +29,8 @@
 package de.sciss.interplay
 
 import util.Random
+import collection.generic.CanBuildFrom
+import collection.immutable.{IndexedSeq => IIdxSeq}
 
 /**
  * @version 0.11, 17-Aug-10
@@ -69,6 +71,60 @@ object Util {
       val i    = rnd.nextDouble
       var sum  = 0.0
       seq find { e => sum += fun( e ); sum >= i } getOrElse seq.last
+   }
+
+   def scramble[ T, C <: Traversable[ T ], That ]( seq: C )( implicit bf: CanBuildFrom[ C, T, That ]) : That = {
+      val b       = bf.apply()
+      var remain  = seq.toIndexedSeq
+      var sz      = remain.size
+      while( sz > 0 ) {
+         val idx  = rand( sz )
+         b       += remain( idx )
+         remain   = remain.patch( idx, Nil, 1 )
+         sz      -= 1
+      }
+      b.result()
+   }
+
+   /**
+    * Like scramble, but each item in the output is guaranteed to be _not_ at
+    * its original index.
+    */
+   def scramble2[ T ]( seq: IIdxSeq[ T ]) : IIdxSeq[ T ] = {
+      var remain  = seq
+      var sz      = remain.size
+      if( sz < 2 ) return remain // no way; could also throw an exception?
+      val b       = seq.companion.newBuilder[ T ]
+      var i       = 0
+      while( sz > 2 ) {
+         val idx0 = rand( sz - 1 )
+         val idx  = if( idx0 < i ) idx0 else idx0 + 1
+         b       += remain( idx )
+         remain   = remain.patch( idx, Nil, 1 )
+         sz -= 1; i += 1
+      }
+      // two are remaining
+      val a1 = remain( 0 )
+      val a2 = remain( 1 )
+      val b1 = seq( i )
+      val b2 = seq( i + 1 )
+      if( a1 == b2 || a2 == b1 ) {
+         b += a1
+         b += a2
+      } else if( a1 == b1 || a2 == b2 ) {
+         b += a2
+         b += a1
+      } else { // free choice
+         if( rand( 2 ) == 0 ) {
+            b += a1
+            b += a2
+         } else {
+            b += a2
+            b += a1
+         }
+      }
+
+      b.result()
    }
 
    def nextPowerOfTwo( x: Int ) : Int = {
