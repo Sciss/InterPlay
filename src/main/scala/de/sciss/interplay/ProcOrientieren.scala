@@ -91,7 +91,7 @@ object ProcOrientieren extends Process {
 
    private def start( dlyTime: Double )( implicit tx: ProcTxn ) {
       startThinking
-      tx.afterCommit( _ => delay( dlyTime ) {
+      delay( dlyTime ) {
          ProcTxn.atomic { implicit tx =>
             inform( "Playing" )
             stopThinking
@@ -105,7 +105,7 @@ object ProcOrientieren extends Process {
                reentry( 0.3333 )
             }
          }
-      })
+      }
    }
 
    private def reentry( factor: Double = 1.0 )( implicit tx: ProcTxn ) {

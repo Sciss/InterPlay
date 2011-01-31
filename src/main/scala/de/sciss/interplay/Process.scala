@@ -63,12 +63,19 @@ object Process {
 
    private lazy val timer = new Timer( true )
 
-   def delay( dur: Double )( thunk: => Unit ) : TimerTask = {
-      val res = new TimerTask {
-         def run = thunk
+   def afterCommit( tx: ProcTxn )( thunk: => Unit ) {
+      require( tx.isActive, "Juhuuu. tx not active anymore" )
+      tx.afterCommit( _ => thunk )
+   }
+
+   def delay( dur: Double )( thunk: => Unit )( implicit tx: ProcTxn ) /* : TimerTask = */ {
+      afterCommit( tx ) {
+         val res = new TimerTask {
+            def run = thunk
+         }
+         timer.schedule( res, (dur * 1000).toLong )
       }
-      timer.schedule( res, (dur * 1000).toLong )
-      res
+//      res
    }
 
    def addTail( p: Proc, fadeTime: Double = 0.0 )( implicit tx: ProcTxn ) {
@@ -173,18 +180,20 @@ object Process {
       }
    }
 
-   def waitForAnalysis( minDur: Double )( thunk: => Unit ) {
+   def waitForAnalysis( minDur: Double )( thunk: => Unit )( implicit tx: ProcTxn ) {
       val minFrames = secsToFrames( minDur )
-      if( anaClientBuf.framesWritten >= minFrames ) {
-         thunk
-      } else {
-         lazy val l: Model.Listener = {
-            case AnalysisBuffer.FrameUpdated( idx, last ) => if( idx >= minFrames ) {
-               anaClientBuf.removeListener( l )
-               thunk
+      afterCommit( tx ) {
+         if( anaClientBuf.framesWritten >= minFrames ) {
+            thunk
+         } else {
+            lazy val l: Model.Listener = {
+               case AnalysisBuffer.FrameUpdated( idx, last ) => if( idx >= minFrames ) {
+                  anaClientBuf.removeListener( l )
+                  thunk
+               }
             }
+            anaClientBuf.addListener( l )
          }
-         anaClientBuf.addListener( l )
       }
    }
 
@@ -210,143 +219,152 @@ object Process {
    /**
     * @param   done  is called with an Option to the audiofile name. None if an error occured
     */
-   def truncateLiveRecording( numAnaFrames: Int )( done: Option[ String ] => Unit ) {
-      spawn {
-         val pathO: Option[ String ] = truncCache.get( numAnaFrames ).orElse( playPath.flatMap( inPath => try {
-            val afIn          = AudioFile.openRead( inPath )
-            val numFrames     = numAnaFrames.toLong * AnalysisBuffer.anaWinStep
-            if( numFrames > afIn.numFrames ) throw new IOException( "Not enough available frames" )
-            val outF          = if( numFrames == afIn.numFrames ) {
-               inPath
-            } else {
-               val afOut      = FScape.createTempAudioFile( afIn )
-               val buf        = afIn.frameBuffer( 8192 )
-               var remaining  = numFrames
-               while( remaining > 0L ) {
-                  val chunkLen   = math.min( 8192, remaining ).toInt
-                  afIn.readFrames( buf, 0, chunkLen )
-                  afOut.writeFrames( buf, 0, chunkLen )
-                  remaining -= chunkLen
-               }
-               afOut.close
-               afOut.file.get
-            }
-            afIn.close
-            val outPath = outF.getAbsolutePath()
-            truncCache += numAnaFrames -> outPath
-            Some( outPath )
+   def truncateLiveRecording( numAnaFrames: Int )( done: Option[ String ] => Unit )( implicit tx: ProcTxn ) {
+      spawn( actTruncLiveRecording( numAnaFrames )( done ))
+   }
 
-         } catch {
-            case e =>
-               inform( "Failed to copy live rec file. Reason:" )
-               e.printStackTrace()
-               None
-         }).orElse( None ))
-         done( pathO )
-      }
+   private def actTruncLiveRecording( numAnaFrames: Int )( done: Option[ String ] => Unit ) {
+      val pathO: Option[ String ] = truncCache.get( numAnaFrames ).orElse( playPath.flatMap( inPath => try {
+         val afIn          = AudioFile.openRead( inPath )
+         val numFrames     = numAnaFrames.toLong * AnalysisBuffer.anaWinStep
+         if( numFrames > afIn.numFrames ) throw new IOException( "Not enough available frames" )
+         val outF          = if( numFrames == afIn.numFrames ) {
+            inPath
+         } else {
+            val afOut      = FScape.createTempAudioFile( afIn )
+            val buf        = afIn.frameBuffer( 8192 )
+            var remaining  = numFrames
+            while( remaining > 0L ) {
+               val chunkLen   = math.min( 8192, remaining ).toInt
+               afIn.readFrames( buf, 0, chunkLen )
+               afOut.writeFrames( buf, 0, chunkLen )
+               remaining -= chunkLen
+            }
+            afOut.close
+            afOut.file.get
+         }
+         afIn.close
+         val outPath = outF.getAbsolutePath()
+         truncCache += numAnaFrames -> outPath
+         Some( outPath )
+
+      } catch {
+         case e =>
+            inform( "Failed to copy live rec file. Reason:" )
+            e.printStackTrace()
+            None
+      }).orElse( None ))
+      done( pathO )
    }
 
    def searchAnalysis( timeInteg: Double, maxResults: Int = 20, frameMeasure: Array[ Float ] => Float,
                        integMeasure: Array[ Float ] => Float, rotateBuf: Boolean = false )
-                     ( fun: ISortedSet[ Sample ] => Unit ) {
+                     ( fun: ISortedSet[ Sample ] => Unit )( implicit tx: ProcTxn ) {
       require( maxResults > 0, "maxResults must be > 0, but is " + maxResults )
-      spawn {
-         inform( "searchAnalysis started" )
-         val frameInteg = secsToFrames( timeInteg )
-         val buf        = anaClientBuf
-         val chanBuf    = new Array[ Float ]( buf.numChannels )
-         val timeBuf    = new Array[ Float ]( frameInteg )
-         val numFrames  = buf.framesWritten - frameInteg + 1
-         var res        = ISortedSet.empty[ Sample ]( sampleOrd )
-         var resCnt     = 0
+      spawn( actSearchAna( timeInteg, maxResults, frameMeasure, integMeasure, rotateBuf )( fun ))
+   }
 
-         def karlheinz( idx: Int ) {
-            val m = integMeasure( timeBuf )
-            if( resCnt < maxResults ) {
-               res += Sample( idx, m )
-               resCnt += 1
-            } else if( res.last.measure > m ) {
-               res = res.dropRight( 1 ) + Sample( idx, m )
-            }
+   private def actSearchAna( timeInteg: Double, maxResults: Int = 20, frameMeasure: Array[ Float ] => Float,
+                             integMeasure: Array[ Float ] => Float, rotateBuf: Boolean = false )
+                           ( fun: ISortedSet[ Sample ] => Unit ) {
+      inform( "searchAnalysis started" )
+      val frameInteg = secsToFrames( timeInteg )
+      val buf        = anaClientBuf
+      val chanBuf    = new Array[ Float ]( buf.numChannels )
+      val timeBuf    = new Array[ Float ]( frameInteg )
+      val numFrames  = buf.framesWritten - frameInteg + 1
+      var res        = ISortedSet.empty[ Sample ]( sampleOrd )
+      var resCnt     = 0
+
+      def karlheinz( idx: Int ) {
+         val m = integMeasure( timeBuf )
+         if( resCnt < maxResults ) {
+            res += Sample( idx, m )
+            resCnt += 1
+         } else if( res.last.measure > m ) {
+            res = res.dropRight( 1 ) + Sample( idx, m )
          }
-
-         if( numFrames > 0 ) {
-            var x = 0; while( x < frameInteg ) {
-               buf.getFrame( 0, chanBuf )
-               timeBuf( x ) = frameMeasure( chanBuf )
-            x += 1 }
-            karlheinz( 0 )
-         }
-         var off = 1; while( off < numFrames ) {
-            val fm = frameMeasure( buf.getFrame( off, chanBuf ))
-            if( rotateBuf ) {
-               System.arraycopy( timeBuf, 1, timeBuf, 0, frameInteg - 1 )
-               timeBuf( 0 ) = fm
-            } else {
-               timeBuf( (off - 1) % frameInteg ) = fm
-            }
-            karlheinz( off )
-         off += 1 }
-
-         inform( "searchAnalysis done" )
-         fun( res )
       }
+
+      if( numFrames > 0 ) {
+         var x = 0; while( x < frameInteg ) {
+            buf.getFrame( 0, chanBuf )
+            timeBuf( x ) = frameMeasure( chanBuf )
+         x += 1 }
+         karlheinz( 0 )
+      }
+      var off = 1; while( off < numFrames ) {
+         val fm = frameMeasure( buf.getFrame( off, chanBuf ))
+         if( rotateBuf ) {
+            System.arraycopy( timeBuf, 1, timeBuf, 0, frameInteg - 1 )
+            timeBuf( 0 ) = fm
+         } else {
+            timeBuf( (off - 1) % frameInteg ) = fm
+         }
+         karlheinz( off )
+      off += 1 }
+
+      inform( "searchAnalysis done" )
+      fun( res )
    }
 
    def searchAnalysisM( frameInteg: Int, maxResults: Int = 20, measure: Similarity.Mat => Float )
-                      ( fun: ISortedSet[ Sample ] => Unit, rotateBuf: Boolean = false ) {
+                      ( fun: ISortedSet[ Sample ] => Unit, rotateBuf: Boolean = false )( implicit tx: ProcTxn ) {
       require( maxResults > 0, "maxResults must be > 0, but is " + maxResults )
-      spawn {
-         inform( "searchAnalysisM started" )
-         val buf        = anaClientBuf
-         val numChannels= buf.numChannels
-//         val frames     = Array.ofDim[ Float ]( frameInteg, numChannels )
-         val frames     = Similarity.Mat( frameInteg, numChannels )
-         val numFrames  = buf.framesWritten - frameInteg + 1
-         var res        = ISortedSet.empty[ Sample ]( sampleOrd )
-         var resCnt     = 0
-         val frameIntegM= frameInteg - 1
-
-         def karlheinz( idx: Int ) {
-            val m = measure( frames )
-            if( resCnt < maxResults ) {
-               res += Sample( idx, m )
-               resCnt += 1
-            } else if( res.last.measure > m ) {
-               res = res.dropRight( 1 ) + Sample( idx, m )
-            }
-         }
-
-         if( numFrames > 0 ) {
-            var x = 0; while( x < frameInteg ) {
-               buf.getFrame( 0, frames.arr( x ))
-            x += 1 }
-            karlheinz( 0 )
-         }
-         var off = 1; while( off < numFrames ) {
-//            val fm = frameMeasure( buf.getFrame( off, chanBuf ))
-            if( rotateBuf ) {
-               var y = 0; while( y < numChannels ) {
-                  var prev = frames.arr( 0 )( y )
-                  var x = frameIntegM; while( x >= 0 ) {   // ouch....
-                     val tmp = frames.arr( x )( y )
-                     frames.arr( x )( y ) = prev
-                     prev = tmp
-                  x -= 1 }
-               y += 1 }
-               buf.getFrame( off, frames.arr( frameIntegM ))
-            } else {
-               buf.getFrame( off, frames.arr( (off - 1) % frameInteg ))
-            }
-            karlheinz( off )
-         off += 1 }
-
-         inform( "searchAnalysisM done" )
-         fun( res )
-      }
+      spawn( actSearchAnaM( frameInteg, maxResults, measure )( fun ))
    }
 
-   private def spawn( thunk: => Unit ) = actor ! Do( thunk )
+   private def actSearchAnaM( frameInteg: Int, maxResults: Int = 20, measure: Similarity.Mat => Float )
+                            ( fun: ISortedSet[ Sample ] => Unit, rotateBuf: Boolean = false ) {
+      inform( "searchAnalysisM started" )
+      val buf        = anaClientBuf
+      val numChannels= buf.numChannels
+//         val frames     = Array.ofDim[ Float ]( frameInteg, numChannels )
+      val frames     = Similarity.Mat( frameInteg, numChannels )
+      val numFrames  = buf.framesWritten - frameInteg + 1
+      var res        = ISortedSet.empty[ Sample ]( sampleOrd )
+      var resCnt     = 0
+      val frameIntegM= frameInteg - 1
+
+      def karlheinz( idx: Int ) {
+         val m = measure( frames )
+         if( resCnt < maxResults ) {
+            res += Sample( idx, m )
+            resCnt += 1
+         } else if( res.last.measure > m ) {
+            res = res.dropRight( 1 ) + Sample( idx, m )
+         }
+      }
+
+      if( numFrames > 0 ) {
+         var x = 0; while( x < frameInteg ) {
+            buf.getFrame( 0, frames.arr( x ))
+         x += 1 }
+         karlheinz( 0 )
+      }
+      var off = 1; while( off < numFrames ) {
+//            val fm = frameMeasure( buf.getFrame( off, chanBuf ))
+         if( rotateBuf ) {
+            var y = 0; while( y < numChannels ) {
+               var prev = frames.arr( 0 )( y )
+               var x = frameIntegM; while( x >= 0 ) {   // ouch....
+                  val tmp = frames.arr( x )( y )
+                  frames.arr( x )( y ) = prev
+                  prev = tmp
+               x -= 1 }
+            y += 1 }
+            buf.getFrame( off, frames.arr( frameIntegM ))
+         } else {
+            buf.getFrame( off, frames.arr( (off - 1) % frameInteg ))
+         }
+         karlheinz( off )
+      off += 1 }
+
+      inform( "searchAnalysisM done" )
+      fun( res )
+   }
+
+   private def spawn( thunk: => Unit )( implicit tx: ProcTxn ) = afterCommit( tx ) { actor ! Do( thunk )}
 
    private object Do { def apply( thunk: => Unit ) = new Do( thunk )}
    private class Do( thunk: => Unit ) { def perform = thunk }

@@ -94,7 +94,7 @@ val MAX_WAIT      = 30.0
 //                     me.stop
 //                     me.control( "pos" ).v = 1.0
                      ProcHelper.stopAndDispose( me )
-                     tx.afterCommit { _ => processAnalysis( anaBuf )}
+                     processAnalysis( anaBuf )
                   }
                }
             }
@@ -130,10 +130,10 @@ val MAX_WAIT      = 30.0
       val waitTime   = rrand( MIN_WAIT, MAX_WAIT )
       inform( "waitForAnalysis " + waitTime )
       startThinking
-      tx.afterCommit( _ => waitForAnalysis( waitTime )( analysisReady ))
+      waitForAnalysis( waitTime )( analysisReady )
    }
 
-   private def reentry {
+   private def reentry( implicit tx: ProcTxn ) {
       val dlyTime = rrand( MIN_REENTRY, MAX_REENTRY )
       delay( dlyTime )( ProcTxn.atomic( start( _ )))
    }
@@ -159,7 +159,11 @@ val MAX_WAIT      = 30.0
 //println( "--4" )
    }
 
-   private def processAnalysis( mat: Similarity.Mat ) {
+   private def processAnalysis( mat: Similarity.Mat )( implicit tx: ProcTxn ) {
+      Process.afterCommit( tx )( actProcessAna( mat ))
+   }
+
+   private def actProcessAna( mat: Similarity.Mat ) {
       val f             = File.createTempFile( "tmp", ".aif" )
       val spec          = AudioFileSpec( numChannels = 1, sampleRate = anaClientBuf.sampleRate )
       val afCtrl        = AudioFile.openWrite( f, spec )
@@ -186,39 +190,43 @@ val MAX_WAIT      = 30.0
          m
       }
 
-      searchAnalysisM( mat.numFrames,
-                       maxResults = 1, // hmmm...
-                       measure = processMeasure( _ )) { _ =>
+      def truncDone( res: Option[ String ]) = res match {
+         case Some( inPath ) =>
+            inform( "ready for murke" )
+            val mean       = sum / numAnaFrames
+            val upThresh   = rrand( MIN_THRESH, MAX_THRESH ) * mean
+            val downThresh = upThresh * rrand( MIN_HYST, MAX_HYST )
+            val ctrlPath   = afCtrl.file.get.getAbsolutePath()
+            val outPath    = File.createTempFile( "fsc", ".aif" ).getAbsolutePath()
+            val doc = FScapeJobs.DrMurke(
+               inPath, ctrlPath, outPath, FScapeJobs.OutputSpec.aiffInt, FScapeJobs.Gain.normalized,
+               mode = "up", threshUp = upThresh.toString, threshDown = downThresh.toString,
+               durUp = "0.1s", durDown = "0.1s", attack = "0.01s", release = "1.0s", spacing = Some( "0s" ))
+            FScape.fsc.process( "murke", doc ) {
+               case true   => ProcTxn.atomic { implicit tx =>
+                  stopThinking
+                  startPlaying
+                  inject( outPath )
+                  reentry
+               }
+               case false  => println( "Failure!" )
+            }
+         case None =>
+            println( name + " : Wooop. Something went wrong. No truncated live file" )
+            ProcTxn.atomic { implicit tx => stopThinking }
+      }
 
+      def measureDone {
          flush
          afCtrl.close
          inform( "getting trunc file" )
-         truncateLiveRecording( numAnaFrames ) {
-            case Some( inPath ) =>
-               inform( "ready for murke" )
-               val mean       = sum / numAnaFrames
-               val upThresh   = rrand( MIN_THRESH, MAX_THRESH ) * mean
-               val downThresh = upThresh * rrand( MIN_HYST, MAX_HYST )
-               val ctrlPath   = afCtrl.file.get.getAbsolutePath()
-               val outPath    = File.createTempFile( "fsc", ".aif" ).getAbsolutePath()
-               val doc = FScapeJobs.DrMurke(
-                  inPath, ctrlPath, outPath, FScapeJobs.OutputSpec.aiffInt, FScapeJobs.Gain.normalized,
-                  mode = "up", threshUp = upThresh.toString, threshDown = downThresh.toString,
-                  durUp = "0.1s", durDown = "0.1s", attack = "0.01s", release = "1.0s", spacing = Some( "0s" ))
-               FScape.fsc.process( "murke", doc ) {
-                  case true   => ProcTxn.atomic { implicit tx =>
-                     stopThinking
-                     startPlaying
-                     inject( outPath )
-                     tx.afterCommit( _ => reentry )
-                  }
-                  case false  => println( "Failure!" )
-               }
-            case None =>
-               println( name + " : Wooop. Something went wrong. No truncated live file" )
-               ProcTxn.atomic { implicit tx => stopThinking }
-         }
+         ProcTxn.atomic( implicit tx => truncateLiveRecording( numAnaFrames )( truncDone( _ )))
       }
+
+      // grmpfff
+      ProcTxn.atomic( implicit tx => searchAnalysisM( mat.numFrames,
+                       maxResults = 1, // hmmm...
+                       measure = processMeasure( _ ))( _ => measureDone ))
    }
 
    private def inject( path: String )( implicit tx: ProcTxn ) {

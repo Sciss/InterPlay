@@ -92,7 +92,7 @@ object ProcTasten extends Process {
       }
    }
 
-   def perform( temp: Similarity.Template, inPath: File ) {
+   def perform( temp: Similarity.Template, inPath: File )( implicit tx: ProcTxn ) {
       searchAnalysisM( frameInteg = temp.mat.numFrames,
                        maxResults = 20,
                        measure = Similarity.xcorr( temp.mat )( _ )) { res =>
@@ -156,12 +156,12 @@ object ProcTasten extends Process {
                         if( first ) {
                            stopThinking
                            startPlaying
+                           reentry
                         }
 //                        FScape.inject( new File( bleach.out ), "O-one" )
                         inject( bleach.out )
-                        reentry
+                        delay( exprand( 0.2, 1.5 ))( gugu( tail, false ))
                      }
-                     delay( exprand( 0.2, 1.5 ))( gugu( tail, false ))
                   case _ =>
                }
             }
@@ -173,7 +173,7 @@ object ProcTasten extends Process {
       }
    }
 
-   private def reentry {
+   private def reentry( implicit tx: ProcTxn ) {
       val dlyTime = rrand( MIN_REENTRY, MAX_REENTRY )
       delay( dlyTime )( ProcTxn.atomic( start( _ )))
    }

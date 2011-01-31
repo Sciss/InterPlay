@@ -36,6 +36,7 @@ import de.sciss.scalainterpreter.LogPane
 import java.awt.{Font, Color, BorderLayout}
 import java.io.PrintStream
 import javax.swing._
+import de.sciss.synth.proc.ProcTxn
 
 class ControlPanel() extends JPanel {
    panel =>
@@ -111,7 +112,7 @@ class ControlPanel() extends JPanel {
          space()
          panel.add( tinyButton( tempName.capitalize ) {
             (Similarity.templates.get( tempName ), playPath) match {
-               case (Some( temp ), Some( inPath )) => ProcTasten.perform( temp, inPath )
+               case (Some( temp ), Some( inPath )) => ProcTxn.spawnAtomic( ProcTasten.perform( temp, inPath )( _ ))
                case _ =>
             }
          })

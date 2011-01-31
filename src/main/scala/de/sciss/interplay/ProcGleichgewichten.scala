@@ -82,12 +82,12 @@ object ProcGleichgewichten extends Process {
       val waitTime   = rrand( MIN_WAIT, MAX_WAIT )
       inform( "waitForAnalysis " + waitTime )
       startThinking
-      tx.afterCommit( _ => waitForAnalysis( waitTime )( analysisReady ))
+      waitForAnalysis( waitTime )( ProcTxn.atomic( analysisReady( _ )))
    }
 
    private val tail = Ref( List.empty[ Proc ])
 
-   private def analysisReady {
+   private def analysisReady( implicit tx: ProcTxn ) {
       val steady     = rrand( MIN_STEADY, MAX_STEADY )
       inform( "searchAnalysis " + steady )
       searchAnalysis( steady,

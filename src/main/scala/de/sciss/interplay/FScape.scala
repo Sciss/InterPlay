@@ -34,8 +34,8 @@ import InterPlay._
 import SoundProcesses._
 import de.sciss.synth
 import synth.io.{SampleFormat, AudioFile, AudioFileSpec}
-import synth.proc.{ParamSpec, ProcDemiurg, Proc, ProcTxn, DSL}
 import de.sciss.interplay.{Process => IPProcess}
+import synth.proc.{Ref, ParamSpec, ProcDemiurg, Proc, ProcTxn, DSL}
 
 object FScape {
    import FScapeJobs._
@@ -46,7 +46,11 @@ object FScape {
       res
    }
 
-   def injectWavelet( inPath: File ) {
+   def injectWavelet( inPath: File )( implicit tx: ProcTxn ) {
+      IPProcess.afterCommit( tx )( actInjectWavelet( inPath ))
+   }
+
+   private def actInjectWavelet( inPath: File ) {
       val outPath = File.createTempFile( "fsc", ".aif", FSC_PATH )
       val doc = Wavelet( inPath.getAbsolutePath, outPath.getAbsolutePath, OutputSpec.aiffInt, Gain.normalized, filter = "daub16", trunc = true )
       fsc.process( "wavelet", doc ) {
@@ -55,14 +59,15 @@ object FScape {
       }
    }
 
-   private var cnt = 0
+   private val cntRef = Ref( 0 )
 
    def inject( outPath: File, diffName: String = "O-all" )( implicit tx: ProcTxn ) {
       import DSL._
       import synth._
       import ugen._
 
-      cnt += 1
+      cntRef.transform( _ + 1 )
+      val cnt = cntRef()
       val spec = AudioFile.readSpec( outPath )
       val d = factory( diffName ).make
       lazy val g: Proc = (gen( "fsc" + cnt ) {

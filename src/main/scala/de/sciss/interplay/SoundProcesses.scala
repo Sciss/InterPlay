@@ -216,7 +216,7 @@ println( "STOPPENDORFER" )
             done.react {
                ProcTxn.spawnAtomic { implicit tx =>
                   me.stop
-                  tx.afterCommit( _ => FScape.injectWavelet( recPath ))
+                  FScape.injectWavelet( recPath )
                }
             }
             Silent.ar
