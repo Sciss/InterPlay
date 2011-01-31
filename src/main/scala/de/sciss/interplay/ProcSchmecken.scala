@@ -71,7 +71,7 @@ object ProcSchmecken extends Process {
             Done.kr( phase ).react {
                ProcTxn.spawnAtomic { implicit tx =>
                   ProcHelper.stopAndDispose( me )
-                  FScape.injectWavelet( recPath )
+                  tx.afterCommit( _ => FScape.injectWavelet( recPath ))
                }
             }
 //            Silent.ar
@@ -86,7 +86,7 @@ object ProcSchmecken extends Process {
                val t = exprand( MIN_WAIT, MAX_WAIT )
                ProcTxn.atomic { implicit tx =>
                   startThinking
-                  val tt = delay( t ) {
+                  tx.afterCommit( _ => delay( t ) {
                      ProcTxn.atomic { implicit tx =>
                         stopThinking
                         val pt = if( coin( ALL_PROB )) ReplaceAll else ReplaceInternal
@@ -98,7 +98,7 @@ object ProcSchmecken extends Process {
                            startPlaying    // XXX stopPlaying missing
                         }
                      }
-                  }
+                  })
                }
             }
             oldState = u.state

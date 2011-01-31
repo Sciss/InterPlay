@@ -94,7 +94,7 @@ val MAX_WAIT      = 30.0
 //                     me.stop
 //                     me.control( "pos" ).v = 1.0
                      ProcHelper.stopAndDispose( me )
-                     processAnalysis( anaBuf )
+                     tx.afterCommit { _ => processAnalysis( anaBuf )}
                   }
                }
             }
@@ -130,7 +130,7 @@ val MAX_WAIT      = 30.0
       val waitTime   = rrand( MIN_WAIT, MAX_WAIT )
       inform( "waitForAnalysis " + waitTime )
       startThinking
-      waitForAnalysis( waitTime )( analysisReady )
+      tx.afterCommit( _ => waitForAnalysis( waitTime )( analysisReady ))
    }
 
    private def reentry {
@@ -139,24 +139,24 @@ val MAX_WAIT      = 30.0
    }
 
    private def analysisReady {
-println( "--X" )
+//println( "--X" )
       ProcTxn.spawnAtomic { implicit tx =>  // XXX must spawn, don't know why? otherwise system blows up!
          inform( "analysisReady" )
          startThinking
-println( "--0" )
+//println( "--0" )
          val pt = if( liveActive ) {
             val rnd = rand( 1.0 )
             if( rnd <= LIVE_PROB ) ReplaceLive else if( rnd - LIVE_PROB <= INT_PROB ) ReplaceInternal else ReplaceAll
          } else ReplaceInternal
          if( canReplaceTail( pt )) {
             val p = factory( anaName ).make
-println( "--1" )
-println( "--2" )
+//println( "--1" )
+//println( "--2" )
             replaceTail( p, point = pt )
          }
-println( "--3" )
+//println( "--3" )
       }
-println( "--4" )
+//println( "--4" )
    }
 
    private def processAnalysis( mat: Similarity.Mat ) {
@@ -210,7 +210,7 @@ println( "--4" )
                      stopThinking
                      startPlaying
                      inject( outPath )
-                     reentry
+                     tx.afterCommit( _ => reentry )
                   }
                   case false  => println( "Failure!" )
                }

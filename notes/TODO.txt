@@ -3,3 +3,43 @@
 repeated search seems to not update results if called too early in the buffer generation
 
 ; sum-rec : funzt niet beim re-starten (scheint nur stille aufzuzeichen)
+
+
+Exception in thread "Timer-2" java.net.SocketException: Message too long
+	at sun.nio.ch.DatagramChannelImpl.send0(Native Method)
+	at sun.nio.ch.DatagramChannelImpl.sendFromNativeBuffer(DatagramChannelImpl.java:301)
+	at sun.nio.ch.DatagramChannelImpl.send(DatagramChannelImpl.java:265)
+	at sun.nio.ch.DatagramChannelImpl.send(DatagramChannelImpl.java:250)
+	at de.sciss.osc.impl.UDPTransmitter.send(UDPTransmitter.scala:102)
+	at de.sciss.osc.OSCTransmitter.$bang(OSCTransmitter.scala:190)
+	at de.sciss.osc.OSCClient.$bang(OSCClient.scala:270)
+	at de.sciss.synth.Server.$bang(Server.scala:506)
+	at de.sciss.synth.proc.ProcTxn$Impl$$anonfun$prepare$1.apply(ProcTxn.scala:171)
+	at de.sciss.synth.proc.ProcTxn$Impl$$anonfun$prepare$1.apply(ProcTxn.scala:156)
+	at scala.collection.immutable.MapLike$$anon$2$$anonfun$foreach$3.apply(MapLike.scala:106)
+	at scala.collection.immutable.MapLike$$anon$2$$anonfun$foreach$3.apply(MapLike.scala:106)
+	at scala.collection.immutable.IntMap.foreach(IntMap.scala:200)
+	at scala.collection.immutable.MapLike$$anon$2.foreach(MapLike.scala:106)
+	at de.sciss.synth.proc.ProcTxn$Impl.prepare(ProcTxn.scala:156)
+	at edu.stanford.ppl.ccstm.Txn$$anonfun$writeResourcesPrepare$1.apply(Txn.scala:654)
+	at edu.stanford.ppl.ccstm.Txn$$anonfun$writeResourcesPrepare$1.apply(Txn.scala:652)
+	at edu.stanford.ppl.ccstm.impl.CallbackPrioSlot.visitOne(CallbackList.scala:129)
+	at edu.stanford.ppl.ccstm.impl.CallbackList.attemptSlot(CallbackList.scala:78)
+	at edu.stanford.ppl.ccstm.impl.CallbackList.attemptForeach(CallbackList.scala:71)
+	at edu.stanford.ppl.ccstm.impl.CallbackList.foreach(CallbackList.scala:51)
+	at edu.stanford.ppl.ccstm.impl.CallbackList.foreach(CallbackList.scala:45)
+	at edu.stanford.ppl.ccstm.Txn.writeResourcesPrepare(Txn.scala:652)
+	at edu.stanford.ppl.ccstm.impl.TxnImpl.commitImpl(TxnImpl.scala:250)
+	at edu.stanford.ppl.ccstm.Txn.commit(Txn.scala:558)
+	at edu.stanford.ppl.ccstm.Txn.commitAndRethrow(Txn.scala:564)
+	at edu.stanford.ppl.ccstm.STM$.attemptImpl(STM.scala:134)
+	at edu.stanford.ppl.ccstm.STM$.topLevelAtomic(STM.scala:61)
+	at edu.stanford.ppl.ccstm.STM$.atomic(STM.scala:35)
+	at de.sciss.synth.proc.ProcTxn$.atomic(ProcTxn.scala:89)
+!	at de.sciss.interplay.ProcOrientieren$$anonfun$1.apply$mcV$sp(ProcOrientieren.scala:95)
+	at de.sciss.interplay.Process$$anon$2.run(Process.scala:68)
+	at java.util.TimerThread.mainLoop(Timer.java:512)
+	at java.util.TimerThread.run(Timer.java:462)
+WTF?
+
+seh is doin great ; however seems that numerous instances are spawned -- this is nice, but should occur only occasionally

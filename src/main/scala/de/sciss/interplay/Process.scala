@@ -54,7 +54,7 @@ object Process {
    case object ReplaceAll      extends ReplacePoint
 
    def init( implicit tx: ProcTxn ) {
-      actor.start
+      actor.start  // save to call repeatedly, so no prob with tx rollback
       all.foreach( _.init )
    }
 
@@ -372,7 +372,7 @@ trait Process extends TxnModel[ Process.Update ] {
    def name : String
    def verbose : Boolean
 
-   def init(  implicit tx: ProcTxn ) : Unit
+   def init( implicit tx: ProcTxn ) : Unit
 
    protected def inform( what: => String ) = if( verbose ) println( name + ": " + what )
 
