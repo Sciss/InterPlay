@@ -41,8 +41,8 @@ import java.io.IOException
 
 object Process {
    val verbose = true
-//   val all = List( ProcSehen, ProcHoeren, ProcRiechen, ProcSchmecken, ProcTasten, ProcOrientieren, ProcGleichgewichten )
-   val all = List( ProcRiechen )
+   val all = List( ProcSehen, ProcHoeren, ProcRiechen, ProcSchmecken, ProcTasten, ProcOrientieren, ProcGleichgewichten )
+//   val all = List( ProcRiechen )
 //   lazy val map: Map[ String, Process ] = all.map( p => p.name -> p )( collection.breakOut )
 
    private val actor = new Actor { def act = loop { react {

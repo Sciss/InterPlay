@@ -45,6 +45,8 @@ object SoundProcesses {
    val diskBufSize   = 32768
    val liveDur = 3.0   // minutes
 
+   val LIVE_AMP_SPEC = ParamSpec( 0.1, 10, ExpWarp ) -> 0.5
+
    import AnalysisBuffer.{anaChans, anaWinStep}
    val maxLiveAnaFr   = {
       val secs = liveDur * 60
@@ -81,6 +83,7 @@ object SoundProcesses {
 
    private var pLive: Proc = _
    var pLiveHlb: Proc = _
+   var pLiveDiff: Proc = _
    var collLive: Proc = _
    var collInt: Proc = _
    var collAll: Proc = _
@@ -783,8 +786,18 @@ println( "STOPPENDORFER" )
             stage( stage( stage( flt0 )))
          }
       }).make
-//      collLive = diffAll.make // factory( "D-all" ).make
-      val pLiveDiff = diffAll.make // factory( "D-all" ).make
+
+      val pLiveDiff = (filter( "O-live" ) {
+         val pamp  = pAudio( "amp", LIVE_AMP_SPEC._1, LIVE_AMP_SPEC._2 )
+         graph { in =>
+            val sig          = (in * Lag.ar( pamp.ar, 0.1 )).outputs
+            val inChannels   = sig.size
+            val outChannels  = MASTER_NUMCHANNELS
+            val outSig       = IIdxSeq.tabulate( outChannels )( ch => sig( ch % inChannels ))
+            outSig
+         }
+      }).make
+//      pLiveDiff = diffAll.make // factory( "D-all" ).make
       collLive = diffThru.make
       pLive ~> pLiveHlb ~> pLiveDiff ~> collLive ~> collAll
 
