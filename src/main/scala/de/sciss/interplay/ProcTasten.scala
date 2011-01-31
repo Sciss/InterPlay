@@ -81,12 +81,16 @@ object ProcTasten extends Process {
       val waitTime   = rrand( MIN_WAIT, MAX_WAIT )
       inform( "waitForAnalysis " + waitTime )
       startThinking
-      waitForAnalysis( waitTime ) {
-         val temp = choose( Similarity.templates )._2
+      waitForAnalysis( waitTime )( waitForAnaDone )
+   }
+
+   private def waitForAnaDone {
+      val temp = choose( Similarity.templates )._2
+      ProcTxn.atomic { implicit tx =>
          playPath match {
             case Some( inPath ) => perform( temp, inPath )
             case None => {
-               ProcTxn.spawnAtomic { implicit tx => stopThinking } // XXX spawn!
+               stopThinking
             }
          }
       }
@@ -95,12 +99,14 @@ object ProcTasten extends Process {
    def perform( temp: Similarity.Template, inPath: File )( implicit tx: ProcTxn ) {
       searchAnalysisM( frameInteg = temp.mat.numFrames,
                        maxResults = 20,
-                       measure = Similarity.xcorr( temp.mat )( _ )) { res =>
-         if( verbose ) inform( "search result : " + res )
-         if( res.nonEmpty ) {
-            process( inPath, res )
-         } else ProcTxn.atomic { implicit tx => stopThinking }
-      }
+                       measure = Similarity.xcorr( temp.mat )( _ ))( searchAnaDone( inPath, _ ))
+   }
+
+   private def searchAnaDone( inPath: File, res: Iterable[ Sample ]) {
+      if( verbose ) inform( "search result : " + res )
+      if( res.nonEmpty ) {
+         process( inPath, res )
+      } else ProcTxn.atomic { implicit tx => stopThinking }
    }
 
    private def process( inPath: File, res: Iterable[ Sample ]) {
