@@ -43,3 +43,11 @@ Exception in thread "Timer-2" java.net.SocketException: Message too long
 WTF?
 
 seh is doin great ; however seems that numerous instances are spawned -- this is nice, but should occur only occasionally
+
+:::::::::::::
+
+should go thru all occurences of AudioFile read / write and handle gracefully exceptions
+
+:::::::::::::
+
+the accidentally blocked fscape is a good way of keeping things calm for a while ( < 4 minutes)

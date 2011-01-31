@@ -110,11 +110,19 @@ object ProcTasten extends Process {
    }
 
    private def process( inPath: File, res: Iterable[ Sample ]) {
+      val inF = try {
+         AudioFile.openRead( inPath )
+      } catch {
+         case e =>
+            println( name + " : Could not open audiofile for reading: " + inPath )
+            return
+      }
+      val buf           = inF.frameBuffer( 8192 )
+
       val jobs: List[ FScapeJobs.Bleach ] = res.map( smp => {
          val (start, stop) = isolateHit( smp.idx )
          val rvsLen        = math.min( 44100L, stop - start )
-         val inF           = AudioFile.openRead( inPath )
-         val buf           = inF.frameBuffer( 8192 )
+//         val inF           = AudioFile.openRead( inPath )
          val outF          = FScape.createTempAudioFile( inF )
 
          // reverse
@@ -138,7 +146,6 @@ object ProcTasten extends Process {
             remain -= chunkLen
          }
 
-         inF.close
          outF.close
 
          val outPath = File.createTempFile( "tmp", ".aif" )
@@ -153,6 +160,9 @@ object ProcTasten extends Process {
             clip     = "18dB"
          )
       })( breakOut )
+
+      inF.close
+
       FScape.fsc.processChain( name, jobs ) { res =>
          if( res ) {
             def gugu( jobs: List[ FScapeJobs.Bleach ], first: Boolean ) {

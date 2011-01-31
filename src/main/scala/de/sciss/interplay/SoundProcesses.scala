@@ -81,7 +81,7 @@ object SoundProcesses {
       }
    }).toList.sortBy( _.getName ).lastOption )
 
-   private var pLive: Proc = _
+   var pLive: Proc = _
    var pLiveHlb: Proc = _
    var pLiveDiff: Proc = _
    var collLive: Proc = _
@@ -700,6 +700,14 @@ println( "STOPPENDORFER" )
       dummy ~> collInt ~> collAll
       ProcHelper.playNewDiff( collAll, postFun = dummy.dispose( _ )) // dummy needed to get the input channel :-(
 
+      diff( "mitschnitt" ) {
+         val df = new SimpleDateFormat( "'rec'yyMMdd'_'HHmmss'.irc'", Locale.US )
+         graph { in =>
+            val recPath = new File( new File( REC_PATH, "mitschnitt" ), df.format( new java.util.Date() ))
+            DiskOut.ar( bufRecord( recPath.getAbsolutePath, in.numOutputs, AudioFileType.IRCAM ).id, in )
+         }
+      }
+
       def recMix( sig: GE, numOut: Int ) : GE = {
          val numIn = masterBus.numChannels
          val sig1: GE = if( numOut == numIn ) {
@@ -814,14 +822,15 @@ println( "STOPPENDORFER" )
 //      Process.init
    }
 
-   def startLive {
-      ProcTxn.spawnAtomic { implicit tx =>
+   def startLive( implicit tx: ProcTxn ) {
+//      ProcTxn.spawnAtomic { implicit tx =>
 //         pLiveOut.play
          if( !collLive.isPlaying )  collLive.play
          if( !pLiveHlb.isPlaying )  pLiveHlb.play
          if( !pLive.isPlaying )     pLive.play
          Process.init
-      }
+//         tx.afterCommit( guiRun { ctrlPanel.startClock })
+//      }
    }
 
    def headphoneMix( onOff: Boolean ) {
@@ -832,6 +841,18 @@ println( "STOPPENDORFER" )
 //         case (true, None) => Some( Synth.after( s.defaultGroup, "hp-mix" ))
 //         case (_, x) => x
 //      }
+   }
+
+   private val mitRef = Ref( Option.empty[ Proc ])
+   def mitschnitt( onOff: Boolean )( implicit tx: ProcTxn ) {
+      val p = mitRef.swap( None )
+      p.foreach( Process.removeAndDisposeDiff( _ ))
+      if( onOff ) {
+         val p = factory( "mitschnitt" ).make
+         collAll ~> p
+         p.play
+         mitRef.set( Some( p ))
+      }
    }
 
 //   def factory( name: String )( implicit tx: ProcTxn ) =

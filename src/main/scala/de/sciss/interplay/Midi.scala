@@ -84,7 +84,7 @@ object Midi {
                               }
                            } else if( num == 89 ) {   // play
                               if( num > 0 ) {
-                                 startLive
+                                 ProcTxn.spawnAtomic( startLive( _ ))
                               }
                            }
 

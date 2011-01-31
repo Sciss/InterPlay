@@ -41,7 +41,7 @@ import java.io.IOException
 
 object Process {
    val verbose = true
-   val all = List( ProcSehen, ProcHoeren, ProcRiechen, ProcSchmecken, ProcTasten, ProcOrientieren, ProcGleichgewichten )
+   val all = List( ProcSehen, ProcHoeren, /* ProcRiechen,*/ ProcSchmecken, ProcTasten, ProcOrientieren, ProcGleichgewichten )
 //   val all = List( ProcRiechen )
 //   lazy val map: Map[ String, Process ] = all.map( p => p.name -> p )( collection.breakOut )
 
@@ -187,6 +187,11 @@ object Process {
 
    def timeString = (new java.util.Date()).toString
 
+   /**
+    * Removes and disposes a subtree. That is, it disconnects the proc's
+    * outputs, then the inputs, then disposes the proc, and recursively
+    * does this for all the proc's inputs
+    */
    def removeAndDispose( p: Proc, fadeTime: Double = 0.0 )( implicit tx: ProcTxn ) {
 //      if( fadeTime > 0 ) xfade( fadeTime ) { p.stop } else p.stop
       if( fadeTime > 0 ) glide( fadeTime ) {
@@ -216,6 +221,16 @@ object Process {
       }
    }
 
+   /**
+    * Removes and disposes an auxiliary diff. Simply disconnects
+    * from the source, but does not otherwise touch or free the source.
+    * Does not pay attention to outputs!
+    */
+   def removeAndDisposeDiff( p: Proc )( implicit tx: ProcTxn ) {
+      p.audioInputs.flatMap( _.edges ).foreach { e => e.out ~/> e.in }
+      p.dispose
+   }
+
    def waitForAnalysis( minDur: Double )( thunk: => Unit )( implicit tx: ProcTxn ) {
       val minFrames = secsToFrames( minDur )
       afterCommit( tx ) {
@@ -236,7 +251,7 @@ object Process {
    private def inform( what: => String ) = if( verbose ) println( "Process : " + what )
 
    /**
-    * @return  the number of corresponding _analysis_ frames (e.g. at sr/512) available right now
+    *  @return the number of corresponding _analysis_ frames (e.g. at sr/512) available right now
     *    from both the AnalysisBuffer and the live soundfile. Zero if the soundfile cannot be accessed
     */
    def availableLiveRecordingFrames : Int = {

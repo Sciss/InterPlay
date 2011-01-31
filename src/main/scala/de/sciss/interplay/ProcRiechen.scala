@@ -15,14 +15,19 @@ object ProcRiechen extends Process {
    val name                = "p-riech"
    val verbose             = true
 
-   val MIN_WAIT            = 60.0
-   val MAX_WAIT            = 120.0
+//   val MIN_WAIT            = 60.0
+//   val MAX_WAIT            = 120.0
+   val MIN_WAIT            = 120.0
+   val MAX_WAIT            = 180.0
 //val MIN_WAIT            = 10.0
 //val MAX_WAIT            = 10.0
 
    val LIVE_PROB           = 0.175
 //val LIVE_PROB           = 1.0 // force it
    val INT_PROB            = 0.75
+
+   val MIN_REENTRY         = 60.0
+   val MAX_REENTRY         = 120.0
 
    private val catchName   = name + "-catch"
    private val throwName   = name + "-throw"

@@ -36,7 +36,7 @@ import de.sciss.scalainterpreter.LogPane
 import java.awt.{Font, Color, BorderLayout}
 import java.io.PrintStream
 import javax.swing._
-import de.sciss.synth.proc.ProcTxn
+import de.sciss.synth.proc.{Proc, ProcTxn}
 
 class ControlPanel() extends JPanel {
    panel =>
@@ -47,6 +47,7 @@ class ControlPanel() extends JPanel {
       if( MIC_AND_PEOPLE.nonEmpty ) Some( new PeakMeterPanel() ) else None
 
    private var interpreter : Option[ ScalaInterpreterFrame ] = None
+   private val ggClock = new Wallclock
 
    {
       panel.setLayout( new BoxLayout( panel, BoxLayout.X_AXIS ))
@@ -79,7 +80,7 @@ class ControlPanel() extends JPanel {
 //      panel.add( m2 )
 
       def dressTiny( b: AbstractButton, label: String )( action: => Unit ) {
-         b.putClientProperty( "JButton.buttonType", "bevel" )
+//         b.putClientProperty( "JButton.buttonType", "bevel" )
          b.putClientProperty( "JComponent.sizeVariant", "small" )
          b.setFocusable( false )
          b.setAction( new AbstractAction( label ) {
@@ -89,23 +90,24 @@ class ControlPanel() extends JPanel {
       def tinyButton( label: String )( action: => Unit ) : JButton = {
          val b = new JButton()
          dressTiny( b, label )( action )
+         b.putClientProperty( "JButton.buttonType", "bevel" )
          b
       }
       def tinyToggle( label: String )( action: Boolean => Unit ) : JToggleButton = {
          val b = new JToggleButton()
          dressTiny( b, label )( action( b.isSelected ))
+         b.putClientProperty( "JButton.buttonType", "square" )
          b
       }
       def space( px: Int = 4 ) { panel.add( Box.createHorizontalStrut( px ))}
 
-      val ggClock = new Wallclock
       panel.add( tinyButton( "\u25B6" ) {
-         ggClock.reset
-         ggClock.start
-         SoundProcesses.startLive
+         ProcTxn.atomic { implicit tx => SoundProcesses.startLive }
       })
       panel.add( ggClock )
       space()
+      panel.add( tinyToggle( "Rec" )( b => ProcTxn.atomic { implicit tx => SoundProcesses.mitschnitt( b )}))
+      space( 16 )
       panel.add( tinyToggle( "HP" )( SoundProcesses.headphoneMix( _ )))
       List( ("StringBleach", "string"), ("GlissBleach", "gliss") ) foreach { tup =>
          val (name, tempName) = tup
@@ -187,6 +189,27 @@ class ControlPanel() extends JPanel {
       f.setContentPane( panel )
       f.pack()
       f
+   }
+
+   def init( implicit tx: ProcTxn ) {
+      pLive.addListener( new Proc.Listener {
+         var sawRunning = false
+         def updated( u: Proc.Update ) {
+            if( u.state.playing && !sawRunning ) {
+               sawRunning = true
+               guiRun( startClock )
+            }
+         }
+      })
+   }
+
+   private def stopClock {
+      ggClock.stop
+   }
+
+   private def startClock {
+      ggClock.reset
+      ggClock.start
    }
 
    def meterUpdate( peakRMSPairs: Array[ Float ]) {

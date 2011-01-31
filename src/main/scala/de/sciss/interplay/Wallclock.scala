@@ -95,6 +95,8 @@ class Wallclock extends JLabel {
       updateLabel
    }
 
+//   def isRunning = timer.isDefined
+
 //   private def tick {
 //      if( running ) {
 //         secs += 1

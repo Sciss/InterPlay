@@ -37,10 +37,10 @@ import java.awt.{BorderLayout, Font, GraphicsEnvironment, EventQueue}
 import de.sciss.scalainterpreter.LogPane
 import javax.swing.{Box, JScrollPane, WindowConstants, JFrame}
 import de.sciss.synth.osc.OSCResponder
-import de.sciss.osc.OSCMessage
 import java.io.{File, PrintStream}
 import SoundProcesses._
 import de.sciss.nuages.{NuagesPanel, NuagesConfig, NuagesFrame}
+import de.sciss.osc.{TCP, OSCMessage}
 
 object InterPlay {
 //   NuagesPanel.verbose = true
@@ -86,6 +86,8 @@ object InterPlay {
    val inDevice         = "MOTU 828mk2"
    val outDevice        = "MOTU 828mk2"
 
+   var ctrlPanel: ControlPanel = _
+
    lazy val options     = {
       val o          = new ServerOptionsBuilder()
       if( inDevice == outDevice ) {
@@ -107,6 +109,8 @@ object InterPlay {
       o.loadSynthDefs      = false
       o.memorySize         = 65536
       o.zeroConf           = false
+      o.transport          = TCP    // UDP (at least under os x) doesn't eat 64K packets
+      o.port               = 0x6970 // 0 = auto-assign DOES NOT WORK- WHY??!
       o.build
    }
 
@@ -185,15 +189,13 @@ object InterPlay {
             // nuages
             initNuages( maxX, maxY )
 
-            // freesound
-            val ctrlP = new ControlPanel()
 //      val cf = ctrlP.makeWindow
             val ctrlF = new JFrame()
             ctrlF.setUndecorated( true )
             val ctrlB = Box.createHorizontalBox()
             ctrlB.add( ssp )
             ctrlB.add( Box.createHorizontalStrut( 8 ))
-            ctrlB.add( ctrlP )
+            ctrlB.add( ctrlPanel )
             ctrlB.add( Box.createHorizontalStrut( 4 ))
             ctrlF.setContentPane( ctrlB )
             ctrlF.pack()
@@ -204,7 +206,7 @@ object InterPlay {
             val synPostMID = synPostM.id
             OSCResponder.add({
                case OSCMessage( "/meters", `synPostMID`, 0, values @ _* ) =>
-                  EventQueue.invokeLater( new Runnable { def run = ctrlP.meterUpdate( values.map( _.asInstanceOf[ Float ]).toArray )})
+                  EventQueue.invokeLater( new Runnable { def run = ctrlPanel.meterUpdate( values.map( _.asInstanceOf[ Float ]).toArray )})
             }, s )
          }
       }
@@ -244,8 +246,10 @@ object InterPlay {
 //anaView.makeWindow
 
 //      Actor.actor {
+      ctrlPanel = new ControlPanel()
          ProcTxn.atomic { implicit tx =>
             SoundProcesses.init( s )
+            ctrlPanel.init
 //         }
 //         if( START_META ) ProcTxn.atomic { implicit tx =>
 //            SemiNuages.meta.init
