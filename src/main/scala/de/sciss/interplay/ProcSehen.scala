@@ -93,7 +93,7 @@ object ProcSehen extends Process {
                   ProcTxn.spawnAtomic { implicit tx =>
 //                     me.stop
 //                     me.control( "pos" ).v = 1.0
-                     ProcHelper.stopAndDispose( me )
+                     ProcessHelper.stopAndDispose( me )
                      processAnalysis( anaBuf )
                   }
                }
@@ -139,24 +139,18 @@ object ProcSehen extends Process {
    }
 
    private def analysisReady {
-//println( "--X" )
       ProcTxn.spawnAtomic { implicit tx =>  // XXX must spawn, don't know why? otherwise system blows up!
          inform( "analysisReady" )
          startThinking
-//println( "--0" )
          val pt = if( liveActive ) {
             val rnd = rand( 1.0 )
             if( rnd <= LIVE_PROB ) ReplaceLive else if( rnd - LIVE_PROB <= INT_PROB ) ReplaceInternal else ReplaceAll
          } else ReplaceInternal
          if( canReplaceTail( pt )) {
             val p = factory( anaName ).make
-//println( "--1" )
-//println( "--2" )
             replaceTail( p, point = pt )
          }
-//println( "--3" )
       }
-//println( "--4" )
    }
 
    private def processAnalysis( mat: Similarity.Mat )( implicit tx: ProcTxn ) {
@@ -171,7 +165,7 @@ object ProcSehen extends Process {
       val afChan        = afBuf( 0 )
       var pos           = 0
       val numAnaFrames  = availableLiveRecordingFrames
-      inform( "processAnalysis " + numAnaFrames )
+      informDir( "processAnalysis " + numAnaFrames )
 
       def flush {
          afCtrl.writeFrames( afBuf, 0, pos )
@@ -192,7 +186,7 @@ object ProcSehen extends Process {
 
       def truncDone( res: Option[ String ]) = res match {
          case Some( inPath ) =>
-            inform( "ready for murke" )
+            informDir( "ready for murke" )
             val mean       = sum / numAnaFrames
             val upThresh   = rrand( MIN_THRESH, MAX_THRESH ) * mean
             val downThresh = upThresh * rrand( MIN_HYST, MAX_HYST )
@@ -209,17 +203,17 @@ object ProcSehen extends Process {
                   inject( outPath )
                   reentry
                }
-               case false  => println( "Failure!" )
+               case false  => informDir( "FScape failure!", force = true )
             }
          case None =>
-            println( name + " : Wooop. Something went wrong. No truncated live file" )
+            informDir( "Wooop. Something went wrong. No truncated live file", force = true )
             ProcTxn.atomic { implicit tx => stopThinking }
       }
 
       def measureDone {
          flush
          afCtrl.close
-         inform( "getting trunc file" )
+         informDir( "getting trunc file" )
          ProcTxn.atomic( implicit tx => truncateLiveRecording( numAnaFrames )( truncDone( _ )))
       }
 

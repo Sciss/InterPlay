@@ -73,7 +73,7 @@ object ProcOrientieren extends Process {
             val me = Proc.local
             Done.kr( Line.kr( 0, 0, maxDur )).react {
                ProcTxn.spawnAtomic { implicit tx =>
-                  ProcHelper.stopAndDispose( me )
+                  ProcessHelper.stopAndDispose( me )
                   stopPlaying
                   reentry()
                }

@@ -1,0 +1,31 @@
+import javax.sound.midi._
+
+val infos = MidiSystem.getMidiDeviceInfo()
+val inf = infos.filter( _.getDescription == "BCF2000 Port 1" )
+val devs = inf.map( MidiSystem.getMidiDevice( _ ))
+val devIn = devs.find( _.getMaxTransmitters() != 0 ).get
+devIn.open
+val t = devIn.getTransmitter()
+val tr = new Receiver {
+   def close {}
+   def send( m: MidiMessage, time: Long ) {
+      m match {
+         case sm: ShortMessage if( sm.getCommand() == ShortMessage.CONTROL_CHANGE ) =>
+            val ch  = sm.getChannel()
+            val num = sm.getData1()
+            val v   = sm.getData2()
+            println( "CC : " + ch + " : " + num + " : " + v )
+         case _ =>
+      }
+   }
+}
+t.setReceiver( tr )
+
+val devOut = devs.find( _.getMaxReceivers() != 0 ).get
+devOut.open
+val r = devOut.getReceiver()
+val msg = new ShortMessage()
+msg.setMessage( ShortMessage.CONTROL_CHANGE, 0, 7, 0 )
+r.send( msg, -1 )
+msg.setMessage( ShortMessage.CONTROL_CHANGE, 0, 7, 127 )
+r.send( msg, -1 )

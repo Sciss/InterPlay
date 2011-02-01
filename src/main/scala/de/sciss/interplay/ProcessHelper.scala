@@ -33,7 +33,7 @@ import DSL._
 import java.io.File
 //import Dissemination._
 
-object ProcHelper {
+object ProcessHelper {
    val verbose = false
 
 //   def createTempAudioFile = File.createTempFile( "semi", ".aif", new File( TEMP_PATH ))
@@ -139,24 +139,15 @@ object ProcHelper {
 
    def stopAndDispose( p: Proc, fadeTime: Double = 0.0, preFun: ProcTxn => Unit = _ => (), postFun: ProcTxn => Unit = _ => () )( implicit tx: ProcTxn ) {
       val state = p.state
-//println( "STOP-AND-DISPOSE " + p + " -> " + state + " / " + tx.transit )
-//      if( !state.fading && (!state.playing || state.bypassed || (tx.transit == Instant)) ) {
       if( !state.fading && (!state.playing || state.bypassed || (fadeTime == 0.0)) ) {
-//println( ".......INSTANT" )
-//         preFun( tx )
-//         p.dispose
-//         postFun( tx )
          disposeProc( p, preFun, postFun )
       } else {
          p.addListener( stopAndDisposeListener( preFun, postFun ))
          p.anatomy match {
             case ProcFilter => {
-//println( ".......BYPASS" )
                xfade( fadeTime ) { p.bypass }
             }
             case _ => {
-//println( ".......STOP " + (new java.util.Date()) )
-//               p.stop
                glide( fadeTime ) { p.control( "amp" ).v = 0.001 }
             }
          }

@@ -34,6 +34,8 @@ import de.sciss.synth.proc.ProcTxn
 import SoundProcesses._
 
 object Midi {
+   val verbose    = true
+
    val IN_DESCR   = "BCF2000 Port 1"
    val OUT_DESCR  = "BCF2000 Port 1"
 
@@ -83,7 +85,8 @@ object Midi {
                                  }
                               }
                            } else if( num == 89 ) {   // play
-                              if( num > 0 ) {
+                              if( v > 0 ) {
+                                 if( verbose ) println( "START LIVE" )
                                  ProcTxn.spawnAtomic( startLive( _ ))
                               }
                            }

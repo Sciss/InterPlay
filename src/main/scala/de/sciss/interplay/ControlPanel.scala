@@ -171,6 +171,9 @@ class ControlPanel() extends JPanel {
                         ggInterp.setSelected( false )
                      }
                   })
+                  // need to restore console for some reason
+                  Console.setErr( System.err )
+                  Console.setOut( System.out )
                   res
                }
                f.setVisible( true )

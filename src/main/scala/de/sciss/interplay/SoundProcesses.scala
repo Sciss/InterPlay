@@ -698,7 +698,7 @@ println( "STOPPENDORFER" )
       collAll = diffThru.make
       val dummy = (gen( "dummy" ) { graph { Silent.ar( MASTER_NUMCHANNELS )}}).make
       dummy ~> collInt ~> collAll
-      ProcHelper.playNewDiff( collAll, postFun = dummy.dispose( _ )) // dummy needed to get the input channel :-(
+      ProcessHelper.playNewDiff( collAll, postFun = dummy.dispose( _ )) // dummy needed to get the input channel :-(
 
       diff( "mitschnitt" ) {
          val df = new SimpleDateFormat( "'rec'yyMMdd'_'HHmmss'.irc'", Locale.US )
@@ -822,7 +822,10 @@ println( "STOPPENDORFER" )
 //      Process.init
    }
 
+   private val liveStarted = Ref( false )
    def startLive( implicit tx: ProcTxn ) {
+      val wasStarted = liveStarted.swap( true )
+      if( wasStarted ) return
 //      ProcTxn.spawnAtomic { implicit tx =>
 //         pLiveOut.play
          if( !collLive.isPlaying )  collLive.play

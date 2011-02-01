@@ -66,7 +66,7 @@ object ProcTasten extends Process {
             Done.kr( Line.kr( 0, 0, pdur.ir )).react {
                ProcTxn.spawnAtomic { implicit tx =>
                   orgRef.transform( _ - me )
-//                  ProcHelper.stopAndDispose( d, 0.1, postFun = tx => ProcHelper.stopAndDispose( g )( tx ))
+//                  ProcessHelper.stopAndDispose( d, 0.1, postFun = tx => ProcessHelper.stopAndDispose( g )( tx ))
                   Process.removeAndDispose( org.diff, 0.1 )
                }
             }
@@ -103,7 +103,7 @@ object ProcTasten extends Process {
    }
 
    private def searchAnaDone( inPath: File, res: Iterable[ Sample ]) {
-      if( verbose ) inform( "search result : " + res )
+      informDir( "search result : " + res )
       if( res.nonEmpty ) {
          process( inPath, res )
       } else ProcTxn.atomic { implicit tx => stopThinking }
@@ -114,7 +114,7 @@ object ProcTasten extends Process {
          AudioFile.openRead( inPath )
       } catch {
          case e =>
-            println( name + " : Could not open audiofile for reading: " + inPath )
+            informDir( "Could not open audiofile for reading: " + inPath, force = true )
             return
       }
       val buf           = inF.frameBuffer( 8192 )
@@ -184,7 +184,7 @@ object ProcTasten extends Process {
             gugu( jobs, true )
          } else {
             ProcTxn.atomic { implicit tx => stopThinking }
-            println( name + ": FScape failed!" )
+            informDir( "FScape failure!", force = true )
          }
       }
    }

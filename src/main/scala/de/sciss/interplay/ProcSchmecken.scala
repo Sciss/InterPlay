@@ -70,7 +70,7 @@ object ProcSchmecken extends Process {
             }
             Done.kr( phase ).react {
                ProcTxn.spawnAtomic { implicit tx =>
-                  ProcHelper.stopAndDispose( me )
+                  ProcessHelper.stopAndDispose( me )
                   FScape.injectWavelet( recPath )
                }
             }

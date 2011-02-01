@@ -31,18 +31,19 @@ package de.sciss.interplay
 import InterPlay._
 import SoundProcesses._
 import de.sciss.synth.Model
-import collection.immutable.{IndexedSeq => IIdxSeq, SortedSet => ISortedSet}
+import collection.immutable.{IndexedSeq => IIdxSeq, Set => ISet, SortedSet => ISortedSet}
 import actors.Actor
 import java.util.{TimerTask, Timer}
-import de.sciss.synth.proc.{DSL, Proc, TxnModel, Ref, ProcTxn}
-import DSL._
 import de.sciss.synth.io.AudioFile
 import java.io.IOException
+import edu.stanford.ppl.ccstm.Txn
+import de.sciss.synth.proc.{ProcDemiurg, DSL, Proc, TxnModel, Ref, ProcTxn}
+import DSL._
 
 object Process {
    val verbose = true
-   val all = List( ProcSehen, ProcHoeren, /* ProcRiechen,*/ ProcSchmecken, ProcTasten, ProcOrientieren, ProcGleichgewichten )
-//   val all = List( ProcRiechen )
+//   val all = List( ProcSehen, ProcHoeren, /* ProcRiechen,*/ ProcSchmecken, ProcTasten, ProcOrientieren, ProcGleichgewichten )
+   val all = List( ProcRiechen )
 //   lazy val map: Map[ String, Process ] = all.map( p => p.name -> p )( collection.breakOut )
 
    private val actor = new Actor { def act = loop { react {
@@ -79,10 +80,10 @@ object Process {
    }
 
    def addTail( p: Proc, fadeTime: Double = 0.0 )( implicit tx: ProcTxn ) {
-//      ProcHelper.playNewDiff( fadeTime, p )
+//      ProcessHelper.playNewDiff( fadeTime, p )
       p ~> collInt
 //      if( fadeTime > 0 ) xfade( fadeTime ) { p.play } else p.play
-//      ProcHelper.playNewDiff( p, fadeTime )
+//      ProcessHelper.playNewDiff( p, fadeTime )
 
       val con = p.control( "amp" )
       val amp = con.v
@@ -193,31 +194,67 @@ object Process {
     * does this for all the proc's inputs
     */
    def removeAndDispose( p: Proc, fadeTime: Double = 0.0 )( implicit tx: ProcTxn ) {
-//      if( fadeTime > 0 ) xfade( fadeTime ) { p.stop } else p.stop
       if( fadeTime > 0 ) glide( fadeTime ) {
-//         println( "old cv " + p.control( "amp" ).cv )
          p.control( "amp" ).v = 0
-//         println( "new cv " + p.control( "amp" ).cv )
       }
-//if( fadeTime > 0 ) println( "Wowo " + p.hashCode + " - " + p.control( "amp" ).cv.mapping.isEmpty+ " ; target " + p.control( "amp" ).cv.target + "; glidetime " + fadeTime + " ; " + timeString )
-//      ProcHelper.whenFadeDone( p ) { implicit tx => }
-      ProcHelper.whenGlideDone( p, "amp" ) { implicit tx =>
-//         println( "glide done: " + p.hashCode + " : " + timeString )
-         def flonky( p: Proc ) {
-            p.audioOutputs.flatMap( _.edges ).foreach( e => e.out ~/> e.in )
-            val srcs: Set[ Proc ] = p.audioInputs.flatMap( _.edges ).map( e => {
-               val pSrc = e.sourceVertex
-               if( pSrc.isPlaying ) pSrc.stop
-               e.out ~/> e.in
-               pSrc
-            })( collection.breakOut )
-            p.dispose
-//println( "  disposed: " + p.name )
-            srcs.foreach( flonky( _ ))
+      ProcessHelper.whenGlideDone( p, "amp" ) { implicit tx => disposeSubTree( p )}
+   }
+
+   /*
+    * Removes and disposes subtree (without fading)
+    */
+   private def disposeSubTree( p: Proc )( implicit tx: ProcTxn ) {
+      p.audioOutputs.flatMap( _.edges ).foreach( e => e.out ~/> e.in )
+      val srcs: Set[ Proc ] = p.audioInputs.flatMap( _.edges ).map( e => {
+         val pSrc = e.sourceVertex
+         if( pSrc.isPlaying ) pSrc.stop
+         e.out ~/> e.in
+         pSrc
+      })( collection.breakOut )
+      p.dispose
+      srcs.foreach( disposeSubTree( _ ))
+   }
+
+   private def collectSources( p: Proc, stop: Option[ Proc ] = None, set: ISet[ Proc ] = ISet.empty )( implicit tx: ProcTxn ) : ISet[ Proc ] = {
+      val set1 = set + p
+      if( Some( p ) == stop ) {
+         set1
+      } else {
+         p.audioInputs.flatMap( _.edges ).foldLeft( set1 )( (seti, e) => collectSources( e.sourceVertex, stop, seti ))
+      }
+   }
+
+   def removeAndDisposeChain( pin: Proc, pout: Proc, fadeTime: Double = 0.0, preFun: ProcTxn => Unit = _ => (), postFun: ProcTxn => Unit = _ => () )( implicit tx: ProcTxn ) {
+      val ctrl = pout.control( "amp" )
+
+      def dispo( implicit tx: ProcTxn ) {
+         preFun( tx )
+         // first, reconnect the outer part
+         val ines    = pin.audioInput( "in" ).edges
+         val outes   = pout.audioOutput( "out" ).edges
+         val outesf  = outes.filterNot( _.targetVertex.name.startsWith( "$" ))  // XXX tricky shit to determine the meters
+         ines.foreach { ine =>
+//            ine.out ~/> ine.in
+            outesf.foreach( oute => ine.out ~> oute.in )
          }
-//println( "---- begin disposal of " + p.name )
-         flonky( p )
-//println( "---- end" )
+         // tricky part: stop all sources in their reverse topological order
+         // (because of some sucky bus behaviour)
+         val srcs = collectSources( pout, Some( pin ), ISortedSet.empty( ProcDemiurg.worlds( pout.server ).topology.reverse ))
+//         println( "sources : " + srcs.toList.toString )
+         srcs.foreach( p => if( p.isPlaying ) p.stop )
+         // isolate chain
+         ines.foreach { ine => ine.out ~/> ine.in }
+         outesf.foreach( oute => oute.out ~/> oute.in )
+         // then dispose it as a subtree beginning at pout
+         disposeSubTree( pout )
+         postFun( tx )
+      }
+
+      if( (ctrl.v == 0.0) || (fadeTime == 0.0) ) {
+         dispo
+      } else {
+         glide( fadeTime ) { ctrl.v = 0.0 }
+         ProcessHelper.whenGlideDone( pout, ctrl.name )( dispo( _ ))
       }
    }
 
@@ -248,7 +285,18 @@ object Process {
       }
    }
 
-   private def inform( what: => String ) = if( verbose ) println( "Process : " + what )
+   private def doInform( what: => String )( implicit tx: ProcTxn ) {
+      if( tx.isActive ) tx.afterCommit( _ => println( what ))
+      else println( what )
+   }
+
+   private def inform( what: => String, force: Boolean = false )( implicit tx: ProcTxn ) = if( verbose || force ) {
+      doInform( "Process : " + what )
+   }
+
+   private def informDir( what: => String, force: Boolean = false ) = if( verbose || force ) {
+       println( what )
+   }
 
    /**
     *  @return the number of corresponding _analysis_ frames (e.g. at sr/512) available right now
@@ -301,7 +349,7 @@ object Process {
 
       } catch {
          case e =>
-            inform( "Failed to copy live rec file. Reason:" )
+            informDir( "Failed to copy live rec file. Reason:", force = true )
             e.printStackTrace()
             None
       }).orElse( None ))
@@ -318,7 +366,7 @@ object Process {
    private def actSearchAna( timeInteg: Double, maxResults: Int = 20, frameMeasure: Array[ Float ] => Float,
                              integMeasure: Array[ Float ] => Float, rotateBuf: Boolean = false )
                            ( fun: ISortedSet[ Sample ] => Unit ) {
-      inform( "searchAnalysis started" )
+      informDir( "searchAnalysis started" )
       val frameInteg = secsToFrames( timeInteg )
       val buf        = anaClientBuf
       val chanBuf    = new Array[ Float ]( buf.numChannels )
@@ -355,7 +403,7 @@ object Process {
          karlheinz( off )
       off += 1 }
 
-      inform( "searchAnalysis done" )
+      informDir( "searchAnalysis done" )
       fun( res )
    }
 
@@ -367,7 +415,7 @@ object Process {
 
    private def actSearchAnaM( frameInteg: Int, maxResults: Int = 20, measure: Similarity.Mat => Float )
                             ( fun: ISortedSet[ Sample ] => Unit, rotateBuf: Boolean = false ) {
-      inform( "searchAnalysisM started" )
+      informDir( "searchAnalysisM started" )
       val buf        = anaClientBuf
       val numChannels= buf.numChannels
 //         val frames     = Array.ofDim[ Float ]( frameInteg, numChannels )
@@ -411,7 +459,7 @@ object Process {
          karlheinz( off )
       off += 1 }
 
-      inform( "searchAnalysisM done" )
+      informDir( "searchAnalysisM done" )
       fun( res )
    }
 
@@ -443,7 +491,13 @@ trait Process extends TxnModel[ Process.Update ] {
 
    def init( implicit tx: ProcTxn ) : Unit
 
-   protected def inform( what: => String ) = if( verbose ) println( name + ": " + what )
+   protected def inform( what: => String, force: Boolean = false )( implicit tx: ProcTxn ) = if( verbose || force ) {
+      doInform( name + " : " + what )
+   }
+
+   protected def informDir( what: => String, force: Boolean = false )  = if( verbose || force ) {
+      println( name + " : " + what )
+   }
 
 //   def start( implicit tx: ProcTxn ) {
 //      val st = state

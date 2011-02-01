@@ -76,7 +76,7 @@ object FScape {
             val sig = DiskIn.ar( spec.numChannels, bufCue( outPath.getAbsolutePath ).id )
             Done.kr( Line.kr( 0, 0, pdur.ir )).react {
                ProcTxn.spawnAtomic { implicit tx =>
-//                  ProcHelper.stopAndDispose( d, 0.1, postFun = tx => ProcHelper.stopAndDispose( g )( tx ))
+//                  ProcessHelper.stopAndDispose( d, 0.1, postFun = tx => ProcessHelper.stopAndDispose( g )( tx ))
                   IPProcess.removeAndDispose( d, 0.1 )
                }
             }
@@ -90,7 +90,7 @@ object FScape {
       }
       g.control( "dur" ).v = spec.numFrames / spec.sampleRate
       g ~> d
-//      ProcHelper.playNewDiff( 0.1, d )
+//      ProcessHelper.playNewDiff( 0.1, d )
       IPProcess.addTail( d, 0.1 )
 
       // another spawn necessary because sucky wolkenpumpe puts
