@@ -110,7 +110,8 @@ object InterPlay {
       o.memorySize         = 65536
       o.zeroConf           = false
       o.transport          = TCP    // UDP (at least under os x) doesn't eat 64K packets
-      o.port               = 0x6970 // 0 = auto-assign DOES NOT WORK- WHY??!
+      //o.port               = 0x6970 // 0 = auto-assign DOES NOT WORK- WHY??!
+      o.pickPort()
       o.build
    }
 

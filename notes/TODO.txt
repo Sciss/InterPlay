@@ -54,4 +54,4 @@ the accidentally blocked fscape is a good way of keeping things calm for a while
 
 ::::::::::::
 
-should really try to make port "0" working
+[OK]	should really try to make port "0" working

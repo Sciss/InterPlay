@@ -17,17 +17,19 @@ object ProcRiechen extends Process {
 
 //   val MIN_WAIT            = 60.0
 //   val MAX_WAIT            = 120.0
-//   val MIN_WAIT            = 120.0
-//   val MAX_WAIT            = 180.0
-val MIN_WAIT            = 10.0
-val MAX_WAIT            = 10.0
+   val MIN_WAIT            = 120.0
+   val MAX_WAIT            = 180.0
+//val MIN_WAIT            = 10.0
+//val MAX_WAIT            = 10.0
 
-//   val LIVE_PROB           = 0.175
-val LIVE_PROB           = 1.0 // force it
+   val LIVE_PROB           = 0.175
+//val LIVE_PROB           = 1.0 // force it
    val INT_PROB            = 0.75
 
    val MIN_REENTRY         = 60.0
    val MAX_REENTRY         = 120.0
+//val MIN_REENTRY         = 10.0
+//val MAX_REENTRY         = 10.0
 
    val MIN_FADEIN          = 1.0
    val MAX_FADEIN          = 20.0
@@ -88,6 +90,7 @@ val LIVE_PROB           = 1.0 // force it
                         if( orgNew.fltP.isEmpty ) {  // this was the last one
                            orgRef.set( None )
                            removeAndDisposeChain( orgNew.catchP, orgNew.throwP )
+                           reentry()
                         } else {
                            orgRef.set( Some( orgNew ))
                         }
@@ -117,6 +120,15 @@ val LIVE_PROB           = 1.0 // force it
 
       val dlyTime = rrand( MIN_WAIT, MAX_WAIT )
       inform( "waiting " + dlyTime )
+      start( dlyTime )
+   }
+
+   private def reentry( factor: Double = 1.0 )( implicit tx: ProcTxn ) {
+      inform( "Re-entry" )
+      start( exprand( MIN_REENTRY, MAX_REENTRY ) * factor )
+   }
+
+   private def start( dlyTime: Double )( implicit tx: ProcTxn ) {
       delay( dlyTime )( perform )
    }
 

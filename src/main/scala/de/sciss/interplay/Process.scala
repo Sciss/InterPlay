@@ -42,9 +42,8 @@ import DSL._
 
 object Process {
    val verbose = true
-//   val all = List( ProcSehen, ProcHoeren, /* ProcRiechen,*/ ProcSchmecken, ProcTasten, ProcOrientieren, ProcGleichgewichten )
-   val all = List( ProcRiechen )
-//   lazy val map: Map[ String, Process ] = all.map( p => p.name -> p )( collection.breakOut )
+   val all = List( ProcSehen, ProcHoeren, /* ProcRiechen,*/ ProcSchmecken, ProcTasten, ProcOrientieren, ProcGleichgewichten )
+//   val all = List( ProcRiechen )
 
    private val actor = new Actor { def act = loop { react {
       case d: Do => d.perform
@@ -224,6 +223,10 @@ object Process {
       }
    }
 
+   /**
+    * Note: this still leaves a suspicious rollback-error printing... however all procs seem to get properly disposed,
+    * so let's ignore that for the moment...
+    */
    def removeAndDisposeChain( pin: Proc, pout: Proc, fadeTime: Double = 0.0, preFun: ProcTxn => Unit = _ => (), postFun: ProcTxn => Unit = _ => () )( implicit tx: ProcTxn ) {
       val ctrl = pout.control( "amp" )
 
