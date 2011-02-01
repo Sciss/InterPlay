@@ -70,3 +70,7 @@ de.sciss.osc.OSCException: OSC Command Failed: de.sciss.osc.OSCBundle
 ::::::::::::
 
 idee fuer hoeren : koennte nach lokalen climax etwas mit dem onset buffer anfangen
+
+::::::::::::
+
+orientierung could have consequences, e.g. on gleichgewicht (should change pattern after delay has gone, at least sometimes)

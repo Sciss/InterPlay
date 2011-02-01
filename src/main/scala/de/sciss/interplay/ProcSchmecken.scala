@@ -38,6 +38,12 @@ import java.io.File
 import InterPlay._
 import SoundProcesses._
 
+/**
+ * Records part of the sum signal and runs it through FScape.
+ * At the moment this only uses Wavelet decomposition.
+ * Reacts to Gleichgewichten becoming active (as that results
+ * in nice repetitive patterns).
+ */
 object ProcSchmecken extends Process {
    import Process._
 

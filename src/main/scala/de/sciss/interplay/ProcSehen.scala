@@ -39,6 +39,11 @@ import InterPlay._
 import Util._
 import de.sciss.fscape.FScapeJobs
 
+/**
+ * Picks up the current spectral and temporal pattern from the sum signal,
+ * and measures the similarity in the live buffer. Uses FScape's DrMurke
+ * to sort out similar sounds which are the re-injected.
+ */
 object ProcSehen extends Process {
    import Process._
 

@@ -9,6 +9,10 @@ import DSL._
 import Util._
 import collection.immutable.{IndexedSeq => IIdxSeq, Set => ISet}
 
+/**
+ * Inserts different cross-signal transformations into the path.
+ * At the moment this is a binary hilbert shifter.
+ */
 object ProcRiechen extends Process {
    import Process._
 

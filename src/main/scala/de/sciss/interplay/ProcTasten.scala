@@ -39,6 +39,10 @@ import java.io.File
 import de.sciss.fscape.FScapeJobs
 import collection.breakOut
 
+/**
+ * Uses predefined templates to match the live buffer against. Isolates little
+ * gestures of similarity to the templates and plays them back as one-shots.
+ */
 object ProcTasten extends Process {
    import Process._
 

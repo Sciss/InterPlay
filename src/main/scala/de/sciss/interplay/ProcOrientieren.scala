@@ -35,6 +35,10 @@ import DSL._
 import InterPlay._
 import Util._
 
+/**
+ * Inserts a transformation which is a time-varying delay, creating
+ * different glissandi across channels.
+ */
 object ProcOrientieren extends Process {
    import Process._
 

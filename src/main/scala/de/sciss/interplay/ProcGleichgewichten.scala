@@ -37,6 +37,10 @@ import ugen._
 import DSL._
 import collection.breakOut
 
+/**
+ * Searches for steady flat (noisy / little resonance) spectra,
+ * plays short loops back directly from the buffer
+ */
 object ProcGleichgewichten extends Process {
    import Process._
 
