@@ -45,7 +45,8 @@ object SoundProcesses {
    val diskBufSize   = 32768
    val liveDur = 3.0   // minutes
 
-   val LIVE_AMP_SPEC = ParamSpec( 0.1, 10, ExpWarp ) -> 0.5
+//   val LIVE_AMP_SPEC = ParamSpec( 0.1, 10, ExpWarp ) -> 0.5
+   val LIVE_AMP_SPEC = ParamSpec( 0.0, 1, LinWarp ) -> 0.3333
 
    import AnalysisBuffer.{anaChans, anaWinStep}
    val maxLiveAnaFr   = {
@@ -119,7 +120,7 @@ object SoundProcesses {
             }
 //            val phase   = DelTapWr.ar( liveBuf.id, in )
 //            Out.ar( liveBufPhaseBus.index, phase )
-            RecordBuf.ar( in, liveBuf.id, loop = 0, doneAction = pauseSelf )
+            RecordBuf.ar( in, liveBuf.id, loop = 0 /*, doneAction = pauseSelf */ )
             val chain   = FFT( bufEmpty( anaFFTSize ).id, in, anaFFTOver.reciprocal )
             val coeffs  = MFCC.kr( chain, numMelCoeffs )
             val onsets  = Onsets.kr( chain, pthresh.kr )
@@ -133,6 +134,7 @@ object SoundProcesses {
                val iter    = data.iterator
                val cnt     = iter.next.toInt - 1
                val onset   = iter.next > 0
+//println( "cnt = " + cnt + " (" + maxLiveAnaFr + ")" )
                if( cnt < maxLiveAnaFr ) {
                   var i = 0; while( i < numMelCoeffs ) {
                      frame( i ) = (iter.next.toFloat + normAdd( i )) * normMul( i )
@@ -142,10 +144,12 @@ object SoundProcesses {
                   if( cnt % cntUpd == 0 ) ProcTxn.atomic { implicit tx =>
                      me.control( "pos" ).v = cnt.toDouble / maxLiveAnaFr
                   }
-               } else {
+               } else if( cnt == maxLiveAnaFr ) {
+//println( "STOPPENDORFER 1" )
                   ProcTxn.spawnAtomic { implicit tx =>
-                     Process.removeAndDispose( collLive, 5.0 )
-println( "STOPPENDORFER" )
+//println( "STOPPENDORFER 2" )
+                     Process.removeAndDispose( pLiveDiff, 5.0, postFun = _ => println( "LIVE DONE" ))
+//println( "STOPPENDORFER 3" )
 //                     me.stop
 //                     me.control( "pos" ).v = 1.0
                   }
@@ -795,7 +799,7 @@ println( "STOPPENDORFER" )
          }
       }).make
 
-      val pLiveDiff = (filter( "O-live" ) {
+      pLiveDiff = (filter( "O-live" ) {
          val pamp  = pAudio( "amp", LIVE_AMP_SPEC._1, LIVE_AMP_SPEC._2 )
          graph { in =>
             val sig          = (in * Lag.ar( pamp.ar, 0.1 )).outputs
@@ -829,6 +833,7 @@ println( "STOPPENDORFER" )
 //      ProcTxn.spawnAtomic { implicit tx =>
 //         pLiveOut.play
          if( !collLive.isPlaying )  collLive.play
+         if( !pLiveDiff.isPlaying )  pLiveDiff.play
          if( !pLiveHlb.isPlaying )  pLiveHlb.play
          if( !pLive.isPlaying )     pLive.play
          Process.init

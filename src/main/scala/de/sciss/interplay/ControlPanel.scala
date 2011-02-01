@@ -109,16 +109,16 @@ class ControlPanel() extends JPanel {
       panel.add( tinyToggle( "Rec" )( b => ProcTxn.atomic { implicit tx => SoundProcesses.mitschnitt( b )}))
       space( 16 )
       panel.add( tinyToggle( "HP" )( SoundProcesses.headphoneMix( _ )))
-      List( ("StringBleach", "string"), ("GlissBleach", "gliss") ) foreach { tup =>
-         val (name, tempName) = tup
-         space()
-         panel.add( tinyButton( tempName.capitalize ) {
-            (Similarity.templates.get( tempName ), playPath) match {
-               case (Some( temp ), Some( inPath )) => ProcTxn.spawnAtomic( ProcTasten.perform( temp, inPath )( _ ))
-               case _ =>
-            }
-         })
-      }
+//      List( ("StringBleach", "string"), ("GlissBleach", "gliss") ) foreach { tup =>
+//         val (name, tempName) = tup
+//         space()
+//         panel.add( tinyButton( tempName.capitalize ) {
+//            (Similarity.templates.get( tempName ), playPath) match {
+//               case (Some( temp ), Some( inPath )) => ProcTxn.spawnAtomic( ProcTasten.perform( temp, inPath )( _ ))
+//               case _ =>
+//            }
+//         })
+//      }
 
       val numCh = masterBus.numChannels
       masterMeterPanel.setOrientation( SwingConstants.HORIZONTAL )

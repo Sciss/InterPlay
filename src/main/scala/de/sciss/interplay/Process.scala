@@ -84,8 +84,8 @@ object Process {
 //      if( fadeTime > 0 ) xfade( fadeTime ) { p.play } else p.play
 //      ProcessHelper.playNewDiff( p, fadeTime )
 
-      val con = p.control( "amp" )
-      val amp = con.v
+      val ctrl = p.control( "amp" )
+      val amp = ctrl.v
 
       lazy val pl: Proc.Listener = new Proc.Listener {
          def updated( u: Proc.Update ) {
@@ -95,9 +95,9 @@ object Process {
                   p.removeListener( pl )
 //                  if( fadeTime > 0 ) xfade( fadeTime ) { p.play } else p.play
                   if( fadeTime > 0 ) {
-                     con.v = 0
+                     ctrl.v = ctrl.spec.lo
                      p.play
-                     glide( fadeTime ) { con.v = amp }
+                     glide( fadeTime ) { ctrl.v = amp }
                   } else p.play
 //                  postFun( tx )
                }
@@ -192,11 +192,15 @@ object Process {
     * outputs, then the inputs, then disposes the proc, and recursively
     * does this for all the proc's inputs
     */
-   def removeAndDispose( p: Proc, fadeTime: Double = 0.0 )( implicit tx: ProcTxn ) {
+   def removeAndDispose( p: Proc, fadeTime: Double = 0.0, postFun: ProcTxn => Unit = _ => () )( implicit tx: ProcTxn ) {
       if( fadeTime > 0 ) glide( fadeTime ) {
-         p.control( "amp" ).v = 0
+         val ctrl = p.control( "amp" )
+         ctrl.v = ctrl.spec.lo
       }
-      ProcessHelper.whenGlideDone( p, "amp" ) { implicit tx => disposeSubTree( p )}
+      ProcessHelper.whenGlideDone( p, "amp" ) { implicit tx =>
+         disposeSubTree( p )
+         postFun( tx )
+      }
    }
 
    /*
@@ -253,10 +257,10 @@ object Process {
          postFun( tx )
       }
 
-      if( (ctrl.v == 0.0) || (fadeTime == 0.0) ) {
+      if( (ctrl.v == ctrl.spec.lo) || (fadeTime == 0.0) ) {
          dispo
       } else {
-         glide( fadeTime ) { ctrl.v = 0.0 }
+         glide( fadeTime ) { ctrl.v = ctrl.spec.lo }
          ProcessHelper.whenGlideDone( pout, ctrl.name )( dispo( _ ))
       }
    }

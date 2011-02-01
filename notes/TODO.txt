@@ -55,3 +55,18 @@ the accidentally blocked fscape is a good way of keeping things calm for a while
 ::::::::::::
 
 [OK]	should really try to make port "0" working
+
+::::::::::::
+
+wooops, return of frankenstein gettin outa control it seems
+de.sciss.osc.OSCException: OSC Command Failed: de.sciss.osc.OSCBundle
+	at de.sciss.osc.impl.TCPTransmitter.send(TCPTransmitter.scala:119)
+	at de.sciss.osc.OSCTransmitter.$bang(OSCTransmitter.scala:190)
+	at de.sciss.osc.OSCClient.$bang(OSCClient.scala:270)
+	at de.sciss.synth.Server.$bang(Server.scala:506)
+
+(after 15 mins :0)
+
+::::::::::::
+
+idee fuer hoeren : koennte nach lokalen climax etwas mit dem onset buffer anfangen

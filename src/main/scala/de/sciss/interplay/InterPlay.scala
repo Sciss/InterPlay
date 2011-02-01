@@ -34,6 +34,7 @@ import de.sciss.synth.proc.{ProcDemiurg, ProcTxn}
 import de.sciss.synth.{ServerOptionsBuilder, ServerConnection, AudioBus, Server}
 import collection.immutable.{IndexedSeq => IIdxSeq}
 import java.awt.{BorderLayout, Font, GraphicsEnvironment, EventQueue}
+import java.awt.geom.{Point2D}
 import de.sciss.scalainterpreter.LogPane
 import javax.swing.{Box, JScrollPane, WindowConstants, JFrame}
 import de.sciss.synth.osc.OSCResponder
@@ -229,12 +230,14 @@ object InterPlay {
 
       val f          = new NuagesFrame( config )
       masterBus      = f.panel.masterBus.get // XXX not so elegant
-      f.panel.display.setHighQuality( NUAGES_ANTIALIAS )
+      val disp       = f.panel.display
+      disp.setHighQuality( NUAGES_ANTIALIAS )
       val y0 = SCREEN_BOUNDS.y + 22
       val y1 = y0 + 96
       f.setBounds( SCREEN_BOUNDS.x, y1, maxX - SCREEN_BOUNDS.x, maxY - y1 )
       f.setUndecorated( true )
       f.setVisible( true )
+      disp.zoom( new Point2D.Float( f.panel.getWidth(), f.panel.getHeight() ), 0.5 ) // don't ask me how these coordinates work
       support.nuages = f
 
       val anaView = new AnalysisView( anaClientBuf, anaMarkers, math.min( anaClientBuf.numFrames, maxX - SCREEN_BOUNDS.x ), 96 )

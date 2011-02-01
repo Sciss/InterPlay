@@ -74,7 +74,11 @@ object Midi {
                               if( ch == 0 ) {         // mic
                                  ProcTxn.atomic { implicit tx =>
                                     if( pLiveDiff.state.valid ) {
-                                       pLiveDiff.control( "amp" ).v = LIVE_AMP_SPEC._1.map( v.toDouble / 127 )
+                                       val ctrl = pLiveDiff.control( "amp" )
+                                       // crucial to not interfere with the automatic fadeout gaga
+                                       if( ctrl.cv.mapping.isEmpty ) {
+                                          ctrl.v = LIVE_AMP_SPEC._1.map( v.toDouble / 127 )
+                                       }
                                     }
                                  }
                               } else if( ch == 1 ) {  // main
