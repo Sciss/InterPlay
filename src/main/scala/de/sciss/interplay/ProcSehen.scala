@@ -256,7 +256,7 @@ object ProcSehen extends Process {
 
    private def inject( path: String )( implicit tx: ProcTxn ) {
       val spec = audioFileSpec( path )
-      val d = factory( "O-all" ).make
+      val d = factory( "O-all" ).make       // XXX should use different spats
       val g = factory( name ).make
       val org  = Org( g, d, path )
       orgRef.transform( _ + (g -> org) )

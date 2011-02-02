@@ -171,3 +171,7 @@ sum-rec could go mono for collLive
 :::::::::::::::::::::::
 
 murke could eventually be used on the sum-rec instead of live-buf?
+
+::::::::::::::::::::::
+
+schmecken : put files into pool + spawn multi-chan when pool-size == MASTER_NUMCHANNELS

@@ -67,6 +67,7 @@ object Process {
 
    def secsToFrames( secs: Double ) = (secs * (SAMPLE_RATE / AnalysisBuffer.anaWinStep)).toInt
    def framesToPos( idx: Int )      = idx.toDouble / (anaClientBuf.numFrames - 1)
+   def frameToSecs( idx: Int )      = idx.toDouble * AnalysisBuffer.anaWinStep / SAMPLE_RATE
 
    def afterCommit( tx: ProcTxn )( thunk: => Unit ) {
       require( tx.isActive, "Juhuuu. tx not active anymore" )
