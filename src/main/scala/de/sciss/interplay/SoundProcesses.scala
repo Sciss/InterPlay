@@ -43,7 +43,8 @@ import java.util.Locale
 
 object SoundProcesses {
    val diskBufSize   = 32768
-   val liveDur = 3.0   // minutes
+   val liveDur    = 3.0    // minutes
+   val totalDur   = 6.0    // minutes
 
 //   val LIVE_AMP_SPEC = ParamSpec( 0.1, 10, ExpWarp ) -> 0.5
    val LIVE_AMP_SPEC = ParamSpec( 0.0, 1, LinWarp ) -> 0.3333
@@ -827,18 +828,24 @@ object SoundProcesses {
    }
 
    private val liveStarted = Ref( false )
+   @volatile private var logicalTime0 = 0L
    def startLive( implicit tx: ProcTxn ) {
       val wasStarted = liveStarted.swap( true )
       if( wasStarted ) return
-//      ProcTxn.spawnAtomic { implicit tx =>
-//         pLiveOut.play
-         if( !collLive.isPlaying )  collLive.play
-         if( !pLiveDiff.isPlaying )  pLiveDiff.play
-         if( !pLiveHlb.isPlaying )  pLiveHlb.play
-         if( !pLive.isPlaying )     pLive.play
-         Process.init
-//         tx.afterCommit( guiRun { ctrlPanel.startClock })
-//      }
+      if( !collLive.isPlaying )  collLive.play
+      if( !pLiveDiff.isPlaying )  pLiveDiff.play
+      if( !pLiveHlb.isPlaying )  pLiveHlb.play
+      if( !pLive.isPlaying )     pLive.play
+      tx.afterCommit { _ => logicalTime0 = System.currentTimeMillis }
+      Process.init
+   }
+
+   def logicalTime() : Double = {
+//      val liveDur = anaClientBuf.framesWritten.toDouble * anaWinStep / SAMPLE_RATE
+      if( logicalTime0 == 0L ) 0.0 else {
+         val mins = (System.currentTimeMillis() - logicalTime0).toDouble / 60000
+         if( mins <= liveDur ) mins / liveDur else math.min( 2.0, (mins - liveDur) / (totalDur - liveDur) + 1.0 )
+      }
    }
 
    def headphoneMix( onOff: Boolean ) {

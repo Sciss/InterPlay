@@ -38,6 +38,7 @@ import DSL._
 import InterPlay._
 import Util._
 import de.sciss.fscape.FScapeJobs
+import Tendency._
 
 /**
  * Picks up the current spectral and temporal pattern from the sum signal,
@@ -50,25 +51,34 @@ object ProcSehen extends Process {
    val name          = "p-seh"
    val verbose       = true
 
-   val ANA_DUR       = 1.0
+//   val ANA_DUR       = 1.0
+   val TEND_ANA_DUR  = tend( name + "ana_dur", Exp, 0.0 -> (1.0, 1.0), 0.9 -> (0.9, 1.1), 2.0 -> (0.5, 1.0) )
+
    val MIN_WAIT      = 60.0
    val MAX_WAIT      = 120.0
 //val MIN_WAIT      = 30.0
 //val MAX_WAIT      = 30.0
 
-   val LIVE_PROB     = 0.3333
-   val INT_PROB      = 0.3333
+//   val LIVE_PROB     = 0.3333
+//   val INT_PROB      = 0.3333
+   val TEND_LIVE_PROB  = tend( name + "-live_prob", Lin, 0.0 -> (0.6667, 0.6667), 1.0 -> (0.3333, 0.3333) )
+   val TEND_INT_PROB   = tend( name + "-int_prob",  Lin, 0.0 -> (0.1667, 0.1667), 1.0 -> (0.3333, 0.3333) )
 
-   val MIN_THRESH    = 1.0    // powers of mean, thus 1 = mean, 2 = mean.pow( 2 ), etc.
-   val MAX_THRESH    = 0.5    // powers of mean
-   val MIN_HYST      = 0.8    // hysteresis as factor of up-thresh
-   val MAX_HYST      = 0.6    // hysteresis as factor of up-thresh
+//   val MIN_THRESH    = 1.0    // powers of mean, thus 1 = mean, 2 = mean.pow( 2 ), etc.
+//   val MAX_THRESH    = 0.5    // powers of mean
+   val TEND_THRESH   = tend( name + "-thresh", Lin, 0.0 -> (0.5, 1.0), 0.9 -> (0.5, 1.0), 2.0 -> (0.5, 3.0) )
 
-   val MIN_SPEED     = 0.5
-   val MAX_SPEED     = 1.0
+//   val MIN_HYST      = 0.8    // hysteresis as factor of up-thresh
+//   val MAX_HYST      = 0.6    // hysteresis as factor of up-thresh
+   val TEND_HYST     = tend( name + "-hyst", Lin, 0.0 -> (0.6, 0.8), (2.0, (0.6, 0.95), 'sin) )
 
-   val MIN_REENTRY   = 60.0
-   val MAX_REENTRY   = 90.0
+//   val MIN_SPEED     = 0.5
+//   val MAX_SPEED     = 1.0
+   val TEND_SPEED    = tend( name + "-speed", Exp, 0.0 -> (1.0, 1.0), 1.0 -> (0.5, 1.0), 2.0 -> (0.25, 1.0) )
+
+//   val MIN_REENTRY   = 60.0
+//   val MAX_REENTRY   = 90.0
+   val TEND_REENTRY  = tend( name + "-reentry", Lin, 0.0 -> (60.0, 90.0), 1.0 -> (60.0, 90.0), 2.0 -> (10.0, 70.0) )
 
    private val orgRef = Ref( Map.empty[ Proc, Org ])
    private case class Org( gen: Proc, diff: Proc, path: String )
@@ -84,7 +94,7 @@ object ProcSehen extends Process {
             val fftTrig    = Impulse.kr( SampleRate.ir / anaWinStep )
             val fftCnt     = PulseCount.kr( fftTrig )
             val me         = Proc.local
-            val anaFrames  = (ANA_DUR * SAMPLE_RATE / anaWinStep + 0.5).toInt
+            val anaFrames  = (TEND_ANA_DUR.decide * SAMPLE_RATE / anaWinStep + 0.5).toInt
             val anaBuf     = Similarity.Mat( anaFrames, anaChans )
             fftTrig.react( fftCnt +: coeffs.outputs ) { data =>
                val iter    = data.iterator
@@ -139,22 +149,30 @@ object ProcSehen extends Process {
    }
 
    private def reentry( implicit tx: ProcTxn ) {
-      val dlyTime = rrand( MIN_REENTRY, MAX_REENTRY )
+      val dlyTime = TEND_REENTRY.decide
+      inform( "reentry after " + dlyTime + "s" )
       delay( dlyTime )( ProcTxn.atomic( start( _ )))
    }
 
    private def analysisReady {
       ProcTxn.spawnAtomic { implicit tx =>  // XXX must spawn, don't know why? otherwise system blows up!
-         inform( "analysisReady" )
-         startThinking
          val pt = if( liveActive ) {
             val rnd = rand( 1.0 )
-            if( rnd <= LIVE_PROB ) ReplaceLive else if( rnd - LIVE_PROB <= INT_PROB ) ReplaceInternal else ReplaceAll
+            val liveProb   = TEND_LIVE_PROB.decide
+            val intProb    = TEND_INT_PROB.decide
+            if( rnd <= liveProb ) ReplaceLive else if( rnd - liveProb <= intProb ) ReplaceInternal else ReplaceAll
          } else ReplaceInternal
-         if( canReplaceTail( pt )) {
+         val ok = canReplaceTail( pt )
+         inform( "analysisReady " + ok )
+         if( ok ) {
+            startThinking
             val p = factory( anaName ).make
             replaceTail( p, point = pt )
+//         } else {
+//            fastReentry
          }
+
+         reentry
       }
    }
 
@@ -163,69 +181,76 @@ object ProcSehen extends Process {
    }
 
    private def actProcessAna( mat: Similarity.Mat ) {
-      val f             = File.createTempFile( "tmp", ".aif" )
-      val spec          = AudioFileSpec( numChannels = 1, sampleRate = anaClientBuf.sampleRate )
-      val afCtrl        = AudioFile.openWrite( f, spec )
-      val afBuf         = afCtrl.frameBuffer( 1024 )
-      val afChan        = afBuf( 0 )
-      var pos           = 0
-      val numAnaFrames  = availableLiveRecordingFrames
-      informDir( "processAnalysis " + numAnaFrames )
+      try {
+         val f             = File.createTempFile( "tmp", ".aif" )
+         val spec          = AudioFileSpec( numChannels = 1, sampleRate = anaClientBuf.sampleRate )
+         val afCtrl        = AudioFile.openWrite( f, spec )
+         val afBuf         = afCtrl.frameBuffer( 1024 )
+         val afChan        = afBuf( 0 )
+         var pos           = 0
+         val numAnaFrames  = availableLiveRecordingFrames
+         informDir( "processAnalysis " + numAnaFrames )
 
-      def flush {
-         afCtrl.writeFrames( afBuf, 0, pos )
-         pos = 0
-      }
-
-      var sum          = 0.0
-      def processMeasure( dstMat: Similarity.Mat ) : Float = {
-         val m = Similarity.xcorr( mat )( dstMat )
-         if( pos < numAnaFrames ) {
-            afChan( pos ) = m
-            pos += 1
-            if( pos == 1024 ) flush
+         def flush {
+            afCtrl.writeFrames( afBuf, 0, pos )
+            pos = 0
          }
-         sum += m
-         m
-      }
 
-      def truncDone( res: Option[ String ]) = res match {
-         case Some( inPath ) =>
-            informDir( "ready for murke" )
-            val mean       = sum / numAnaFrames
-            val upThresh   = rrand( MIN_THRESH, MAX_THRESH ) * mean
-            val downThresh = upThresh * rrand( MIN_HYST, MAX_HYST )
-            val ctrlPath   = afCtrl.file.get.getAbsolutePath()
-            val outPath    = File.createTempFile( "fsc", ".aif" ).getAbsolutePath()
-            val doc = FScapeJobs.DrMurke(
-               inPath, ctrlPath, outPath, FScapeJobs.OutputSpec.aiffInt, FScapeJobs.Gain.normalized,
-               mode = "up", threshUp = upThresh.toString, threshDown = downThresh.toString,
-               durUp = "0.1s", durDown = "0.1s", attack = "0.01s", release = "1.0s", spacing = Some( "0s" ))
-            FScape.fsc.process( "murke", doc ) {
-               case true   => ProcTxn.atomic { implicit tx =>
-                  stopThinking
-                  startPlaying
-                  inject( outPath )
-                  reentry
-               }
-               case false  => informDir( "FScape failure!", force = true )
+         var sum          = 0.0
+         def processMeasure( dstMat: Similarity.Mat ) : Float = {
+            val m = Similarity.xcorr( mat )( dstMat )
+            if( pos < numAnaFrames ) {
+               afChan( pos ) = m
+               pos += 1
+               if( pos == 1024 ) flush
             }
-         case None =>
-            informDir( "Wooop. Something went wrong. No truncated live file", force = true )
-            ProcTxn.atomic { implicit tx => stopThinking }
-      }
+            sum += m
+            m
+         }
 
-      def measureDone {
-         flush
-         afCtrl.close
-         informDir( "getting trunc file" )
-         ProcTxn.atomic( implicit tx => truncateLiveRecording( numAnaFrames )( truncDone( _ )))
-      }
+         def truncDone( res: Option[ String ]) = res match {
+            case Some( inPath ) =>
+               informDir( "ready for murke" )
+               val mean       = sum / numAnaFrames
+               val upThresh   = TEND_THRESH.decide * mean
+               val downThresh = upThresh * TEND_HYST.decide
+               val ctrlPath   = afCtrl.file.get.getAbsolutePath()
+               val outPath    = File.createTempFile( "fsc", ".aif" ).getAbsolutePath()
+               val doc = FScapeJobs.DrMurke(
+                  inPath, ctrlPath, outPath, FScapeJobs.OutputSpec.aiffInt, FScapeJobs.Gain.normalized,
+                  mode = "up", threshUp = upThresh.toString, threshDown = downThresh.toString,
+                  durUp = "0.1s", durDown = "0.1s", attack = "0.01s", release = "1.0s", spacing = Some( "0s" ))
+               FScape.fsc.process( "murke", doc ) {
+                  case true   => ProcTxn.atomic { implicit tx =>
+                     stopThinking
+                     startPlaying
+                     inject( outPath )
+//                     reentry
+                  }
+                  case false => informDir( "FScape failure!", force = true )
+               }
+            case None =>
+               informDir( "Wooop. Something went wrong. No truncated live file", force = true )
+               ProcTxn.atomic { implicit tx => stopThinking }
+         }
 
-      // grmpfff
-      ProcTxn.atomic( implicit tx => searchAnalysisM( mat.numFrames,
-                       maxResults = 1, // hmmm...
-                       measure = processMeasure( _ ))( _ => measureDone ))
+         def measureDone {
+            flush
+            afCtrl.close
+            informDir( "getting trunc file" )
+            ProcTxn.atomic( implicit tx => truncateLiveRecording( numAnaFrames )( truncDone( _ )))
+         }
+
+         // grmpfff
+         ProcTxn.atomic( implicit tx => searchAnalysisM( mat.numFrames,
+                          maxResults = 1, // hmmm...
+                          measure = processMeasure( _ ))( _ => measureDone ))
+      } catch {
+         case e =>
+            informDir( "Error in process-analysis:", force = true )
+            e.printStackTrace()
+//            ProcTxn.atomic( fastReentry( _ ))
+      }
    }
 
    private def inject( path: String )( implicit tx: ProcTxn ) {
@@ -235,7 +260,7 @@ object ProcSehen extends Process {
       val org  = Org( g, d, path )
       orgRef.transform( _ + (g -> org) )
       g.control( "frames" ).v = spec.numFrames
-      g.control( "speed" ).v  = rrand( MIN_SPEED, MAX_SPEED )
+      g.control( "speed" ).v  = TEND_SPEED.decide
       g ~> d
       Process.addTail( d, 0.1 )
    }

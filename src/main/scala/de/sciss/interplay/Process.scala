@@ -42,11 +42,17 @@ import DSL._
 
 object Process {
    val verbose = true
-   val all = List( ProcSehen, ProcHoeren, /* ProcRiechen,*/ ProcSchmecken, ProcTasten, ProcOrientieren, ProcGleichgewichten )
+   val all = List( ProcSehen, ProcHoeren, ProcRiechen, ProcSchmecken, ProcTasten, ProcOrientieren, ProcGleichgewichten )
 //   val all = List( ProcRiechen )
 
    private val actor = new Actor { def act = loop { react {
-      case d: Do => d.perform
+      case d: Do => try {
+         d.perform
+      } catch {
+         case e =>
+            println( "Caught exception in actor:" )
+            e.printStackTrace()
+      }
    }}}
 
    sealed trait ReplacePoint
@@ -96,9 +102,9 @@ object Process {
 //                  if( fadeTime > 0 ) xfade( fadeTime ) { p.play } else p.play
                   if( fadeTime > 0 ) {
                      ctrl.v = ctrl.spec.lo
-                     p.play
+                     if( !p.isPlaying ) p.play
                      glide( fadeTime ) { ctrl.v = amp }
-                  } else p.play
+                  } else if( !p.isPlaying ) p.play
 //                  postFun( tx )
                }
             }
@@ -185,7 +191,7 @@ object Process {
 //   }
 
 
-   def timeString = (new java.util.Date()).toString
+   def timeString() = (new java.util.Date()).toString
 
    /**
     * Removes and disposes a subtree. That is, it disconnects the proc's
@@ -283,8 +289,10 @@ object Process {
          } else {
             lazy val l: Model.Listener = {
                case AnalysisBuffer.FrameUpdated( idx, last ) => if( idx >= minFrames ) {
-                  anaClientBuf.removeListener( l )
-                  thunk
+                  ProcTxn.atomic { implicit tx =>
+                     anaClientBuf.removeListener( l )
+                     afterCommit( tx )( thunk )
+                  }
                }
             }
             anaClientBuf.addListener( l )
@@ -293,8 +301,12 @@ object Process {
    }
 
    private def doInform( what: => String )( implicit tx: ProcTxn ) {
-      if( tx.isActive ) tx.afterCommit( _ => println( what ))
-      else println( what )
+      if( tx.isActive ) tx.afterCommit( _ => printWithTime( what ))
+      else printWithTime( what )
+   }
+
+   private def printWithTime( what: String ) {
+      println( timeString() + " " + what )
    }
 
    private def inform( what: => String, force: Boolean = false )( implicit tx: ProcTxn ) = if( verbose || force ) {
@@ -302,7 +314,7 @@ object Process {
    }
 
    private def informDir( what: => String, force: Boolean = false ) = if( verbose || force ) {
-       println( what )
+       printWithTime( what )
    }
 
    /**
@@ -373,7 +385,6 @@ object Process {
    private def actSearchAna( timeInteg: Double, maxResults: Int = 20, frameMeasure: Array[ Float ] => Float,
                              integMeasure: Array[ Float ] => Float, rotateBuf: Boolean = false )
                            ( fun: ISortedSet[ Sample ] => Unit ) {
-      informDir( "searchAnalysis started" )
       val frameInteg = secsToFrames( timeInteg )
       val buf        = anaClientBuf
       val chanBuf    = new Array[ Float ]( buf.numChannels )
@@ -381,6 +392,7 @@ object Process {
       val numFrames  = buf.framesWritten - frameInteg + 1
       var res        = ISortedSet.empty[ Sample ]( sampleOrd )
       var resCnt     = 0
+      informDir( "searchAnalysis started " + frameInteg + " / " + numFrames )
 
       def karlheinz( idx: Int ) {
          val m = integMeasure( timeBuf )
@@ -410,7 +422,7 @@ object Process {
          karlheinz( off )
       off += 1 }
 
-      informDir( "searchAnalysis done" )
+      informDir( "searchAnalysis done " + res.size )
       fun( res )
    }
 
@@ -503,7 +515,7 @@ trait Process extends TxnModel[ Process.Update ] {
    }
 
    protected def informDir( what: => String, force: Boolean = false )  = if( verbose || force ) {
-      println( name + " : " + what )
+      println( timeString + " " + name + " : " + what )
    }
 
 //   def start( implicit tx: ProcTxn ) {

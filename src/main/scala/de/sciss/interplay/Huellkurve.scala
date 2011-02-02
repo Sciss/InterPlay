@@ -59,4 +59,7 @@ case class Huellkurve( startLevel: Float, segments: Seq[ Huellkurve.Seg ]) {
       }
       y1
    }
+
+   def overallLo = segments.foldLeft( startLevel )( (m, seg) => math.min( m, seg.targetLevel ))
+   def overallHi = segments.foldLeft( startLevel )( (m, seg) => math.max( m, seg.targetLevel ))
 }

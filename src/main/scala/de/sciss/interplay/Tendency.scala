@@ -65,24 +65,38 @@ object Tendency {
 
    case class TimePoint( time: Float, lo: Float, hi: Float, shp: ConstEnvShape )
 
-   def tend( d: Distrib, pts: TimePoint* ) : Tendency = {
+   def tend( name: String, d: Distrib, pts: TimePoint* ) : Tendency = {
       val durs    = pts.map( _.time ).sorted.sliding( 2, 1 ).map( tup => tup(1) - tup(0) ).toList
       val head    = pts.head
       val tail    = pts.tail
       val zipped  = durs.zip( tail )
       val envLo   = Huellkurve( head.lo, zipped.map( tup => Huellkurve.Seg( tup._1, tup._2.lo, tup._2.shp )))
       val envHi   = Huellkurve( head.hi, zipped.map( tup => Huellkurve.Seg( tup._1, tup._2.hi, tup._2.shp )))
-      Tendency( envLo, envHi, d )
+      Tendency( name, envLo, envHi, d )
    }
 }
 
-case class Tendency( lo: Huellkurve, hi: Huellkurve, distrib: Tendency.Distrib ) {
+case class Tendency( name: String, lo: Huellkurve, hi: Huellkurve, distrib: Tendency.Distrib ) {
    def at( time: Float ) : Float = {
+println( "---deciding " + name + " at time " + time )
       val a = lo.levelAt( time )
       val b = hi.levelAt( time )
       val l = math.min( a, b )
       val h = math.max( a, b )
       val r = Util.rnd.nextFloat()
       distrib.map( r, l, h )
+   }
+
+   def loAt( time: Float ) : Float = lo.levelAt( time )
+   def hiAt( time: Float ) : Float = hi.levelAt( time )
+
+   lazy val overallLo = lo.overallLo
+   lazy val overallHi = hi.overallHi
+
+   def decide : Float = at( SoundProcesses.logicalTime().toFloat )
+   def decideInt : Int = (decide + 0.5f).toInt
+   def decideWithBounds : (Float, Float, Float) = {
+      val tim = SoundProcesses.logicalTime().toFloat
+      (at( tim ), loAt( tim ), hiAt( tim ))
    }
 }

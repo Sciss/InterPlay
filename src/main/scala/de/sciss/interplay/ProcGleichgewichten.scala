@@ -35,6 +35,7 @@ import de.sciss.synth._
 import proc._
 import ugen._
 import DSL._
+import Tendency._
 import collection.breakOut
 
 /**
@@ -49,22 +50,37 @@ object ProcGleichgewichten extends Process {
 
    val MIN_WAIT      = 25.0
    val MAX_WAIT      = 40.0
-   val MIN_STEADY    = 1.0
-   val MAX_STEADY    = 2.0
+
+   val TEND_STEADY   = tend( name + "-steady", Lin, 0.0 -> (1.0, 2.0), 1.0 -> (1.5, 3.0), 2.0 -> (1.0, 3.5) )
+
+//   val MIN_STEADY    = 1.0
+//   val MAX_STEADY    = 2.0
 //   val MAX_RESULTS   = 20
-   val MIN_FADE      = 1.0
-   val MAX_FADE      = 10.0
 
-   val MIN_PLAY      = 60.0
-   val MAX_PLAY      = 120.0
+   val TEND_FADE     = tend( name + "-fade", Lin, 0.0 -> (1.0, 10.0), 2.0 -> (1.0, 10.0) )
 
-   val MIN_REENTRY   = 45.0
-   val MAX_REENTRY   = 90.0
+   val TEND_SPEED    = tend( name + "-speed", Exp, 0.0 -> (1.0, 1.0), 1.0 -> (0.9715, 1.0293), (2.0, (0.5, 1.0), 'welch) )
 
-   def init(  implicit tx: ProcTxn ) {
+//   val MIN_FADE      = 1.0
+//   val MAX_FADE      = 10.0
+
+   val TEND_PLAY     = tend( name + "-play", Exp, 0.0 -> (45.0, 70.0), 0.9 -> (40.0, 50.0), 2.0 -> (35.0, 50.0) )
+
+   val TEND_ALGO     = tend( name + "-algo", Lin, 0.0 -> (0.0, 0.0), 1.0 -> (0.0, 0.0), 2.0 -> (1.0, 1.0) )
+   private val algos = Array( worstFlat( _ ), bestFlat( _ ))
+
+//   val MIN_PLAY      = 60.0
+//   val MAX_PLAY      = 120.0
+
+   val TEND_REENTRY  = tend( name + "-reentry", Exp, 0.0 -> (90.0, 135.0), 0.9 -> (90.0, 120.0), 1.5 -> (60.0, 60.0), 1.6 -> (999.9, 999.9) )
+
+//   val MIN_REENTRY   = 45.0
+//   val MAX_REENTRY   = 90.0
+
+   def init( implicit tx: ProcTxn ) {
       gen( name ) {
          val ppos    = pAudio( "pos", ParamSpec( 0, 1 ), 0 )
-         val pdur    = pAudio( "dur", ParamSpec( MIN_STEADY, MAX_STEADY ), MIN_STEADY )
+         val pdur    = pAudio( "dur", ParamSpec( TEND_STEADY.overallLo, TEND_STEADY.overallHi ), TEND_STEADY.overallLo )
          val pspeed  = pAudio( "speed", ParamSpec( 1.0/8, 8, ExpWarp ), 1 )
          graph {
             val speed      = pspeed.ar
@@ -89,48 +105,61 @@ object ProcGleichgewichten extends Process {
       waitForAnalysis( waitTime )( ProcTxn.atomic( analysisReady( _ )))
    }
 
-   private val tail = Ref( List.empty[ Proc ])
+//   private val tail = Ref( List.empty[ Proc ])
 
    private def analysisReady( implicit tx: ProcTxn ) {
-      val steady     = rrand( MIN_STEADY, MAX_STEADY )
+      val (steady, steadyLo, steadyHi) = TEND_STEADY.decideWithBounds
       inform( "searchAnalysis " + steady )
+      val algo = algos( TEND_ALGO.decideInt )
       searchAnalysis( steady,
          maxResults = MASTER_NUMCHANNELS,
-         frameMeasure = minFlat( _ ), integMeasure = worstFlat( _ )) { res =>
+         frameMeasure = minFlat( _ ), integMeasure = algo ) { res =>
 
          inform( "result " + res )
          ProcTxn.spawnAtomic { implicit tx =>
             stopThinking
             startPlaying
-            tail.set( res.zipWithIndex.map( tup => {
+            val speed = TEND_SPEED.decide
+            val tail: List[ Proc ] = res.zipWithIndex.map( tup => {
                val (smp, idx) = tup
                val genFact = factory( name )
                val p = genFact.make
-               p.control( "dur" ).v = exprand( MIN_STEADY, steady )
+               p.control( "dur" ).v = exprand( steadyLo, steady )
                // DDD p.control( "speed" ).v = fluctuate( phase )
    //               println( "juuu. measure = " + smp.measure )
                // measure is typically between 0.0 (maximally flat) and 0.5
                p.control( "pos" ).v = framesToPos( smp.idx )
+               p.control( "speed" ).v = speed
                val diffFact = factory( "O-one" )
                val d = diffFact.make
                d.control( "idx" ).v = idx
                p ~> d
-               addTail( d, rrand( MIN_FADE, MAX_FADE ))
+               addTail( d, TEND_FADE.decide )
                d
-            })( breakOut ))
+            })( breakOut )
 
-            val dlyTime = if( res.isEmpty ) 0.0 else exprand( MIN_PLAY, MAX_PLAY )
-            inform( "Playing for " + dlyTime + "s" )
-            delay( dlyTime )( ProcTxn.atomic( reentry( _ )))
+            if( res.nonEmpty ) {
+               val playTime = TEND_PLAY.decide
+               inform( "Playing for " + playTime + "s" )
+               delay( playTime )( ProcTxn.atomic { implicit tx =>
+//try {
+                  tail.foreach( removeAndDispose( _, TEND_FADE.decide ))
+//} catch { case e => println( "WOOOOPA: "); e.printStackTrace(); throw e }
+                  inform( "Stopping" )
+                  stopPlaying
+               })
+            }
+            reentry
          }
       }
    }
 
    private def reentry( implicit tx: ProcTxn ) {
-      inform( "Re-entry" )
-      tail.swap( Nil ).foreach( removeAndDispose( _, rrand( MIN_FADE, MAX_FADE )))
-      stopPlaying
-      delay( exprand( MIN_REENTRY, MAX_REENTRY ))( ProcTxn.atomic( start( _ )))
+      val reentryTime = TEND_REENTRY.decide
+      inform( "Re-entry after " + reentryTime + "s" )
+//      tail.swap( Nil ).foreach( removeAndDispose( _, TEND_FADE.decide ))
+//      stopPlaying
+      delay( reentryTime )( ProcTxn.atomic( start( _ )))
    }
 
    private def minFlat( buf: Array[ Float ]) : Float = {
@@ -154,6 +183,15 @@ object ProcGleichgewichten extends Process {
       var i = 1; while( i < buf.size ) {
          val m1 = buf( i )
          if( m1 > m ) m = m1
+      i += 1 }
+      m
+   }
+
+   private def bestFlat( buf: Array[ Float ]) : Float = {
+      var m = buf( 0 )
+      var i = 1; while( i < buf.size ) {
+         val m1 = buf( i )
+         if( m1 < m ) m = m1
       i += 1 }
       m
    }
