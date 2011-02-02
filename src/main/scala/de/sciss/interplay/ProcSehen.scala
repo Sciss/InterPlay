@@ -190,6 +190,7 @@ object ProcSehen extends Process {
          var pos           = 0
          val numAnaFrames  = availableLiveRecordingFrames
          informDir( "processAnalysis " + numAnaFrames )
+         if( numAnaFrames == 0 ) return
 
          def flush {
             afCtrl.writeFrames( afBuf, 0, pos )

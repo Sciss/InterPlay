@@ -253,13 +253,22 @@ object Process {
          // tricky part: stop all sources in their reverse topological order
          // (because of some sucky bus behaviour)
          val srcs = collectSources( pout, Some( pin ), ISortedSet.empty( ProcDemiurg.worlds( pout.server ).topology.reverse ))
-//         println( "sources : " + srcs.toList.toString )
-         srcs.foreach( p => if( p.isPlaying ) p.stop )
-         // isolate chain
-         ines.foreach { ine => ine.out ~/> ine.in }
-         outesf.foreach( oute => oute.out ~/> oute.in )
-         // then dispose it as a subtree beginning at pout
-         disposeSubTree( pout )
+//println( "sources : " + srcs.toList.toString )
+//         srcs.foreach( p => if( p.isPlaying ) p.stop )
+//         // isolate chain
+//         ines.foreach { ine =>
+//            assert( ine.targetVertex == pin )
+//            ine.out ~/> ine.in
+//         }
+//         outesf.foreach { oute =>
+//            assert( oute.sourceVertex == pout )
+//            oute.out ~/> oute.in
+//         }
+//         // then dispose it as a subtree beginning at pout
+//         disposeSubTree( pout )
+srcs.foreach { p =>
+   p.dispose
+}
          postFun( tx )
       }
 
@@ -324,7 +333,9 @@ object Process {
    def availableLiveRecordingFrames : Int = {
       playPath.map { inPath =>
          try {
-            val spec = audioFileSpec( inPath.getAbsolutePath() ) // AudioFile.readSpec( inPath )
+//            val spec = audioFileSpec( inPath.getAbsolutePath() ) // AudioFile.readSpec( inPath )
+            // IMPORTANT: do _not_ use spec because that currently doesn't respect changing files!
+            val spec = AudioFile.readSpec( inPath )
             math.min( anaClientBuf.framesWritten, spec.numFrames / AnalysisBuffer.anaWinStep ).toInt
          } catch {
             case e => 0

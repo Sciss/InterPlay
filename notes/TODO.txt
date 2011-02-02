@@ -163,3 +163,11 @@ java.lang.RuntimeException: Bus is used and hence must be defined : in
 	at scala.actors.threadpool.ThreadPoolExecutor$Worker.run(Unknown Source)
 	at java.lang.Thread.run(Thread.java:637)
 Wed Feb 02 18:58:35 GMT 2011 p-orient : Re-entry
+
+:::::::::::::::::::::::
+
+sum-rec could go mono for collLive
+
+:::::::::::::::::::::::
+
+murke could eventually be used on the sum-rec instead of live-buf?

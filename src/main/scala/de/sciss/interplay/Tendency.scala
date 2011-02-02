@@ -31,6 +31,8 @@ package de.sciss.interplay
 import de.sciss.synth.{ConstEnvShape, curveShape, expShape, cubShape, sinShape, linShape, welchShape, stepShape, sqrShape, EnvShape}
 
 object Tendency {
+   var verbose = false
+
    sealed trait Distrib {
       def map( rnd: Float, lo: Float, hi: Float ) : Float
    }
@@ -77,14 +79,17 @@ object Tendency {
 }
 
 case class Tendency( name: String, lo: Huellkurve, hi: Huellkurve, distrib: Tendency.Distrib ) {
+   import Tendency._
+
    def at( time: Float ) : Float = {
-println( "---deciding " + name + " at time " + time )
       val a = lo.levelAt( time )
       val b = hi.levelAt( time )
       val l = math.min( a, b )
       val h = math.max( a, b )
       val r = Util.rnd.nextFloat()
-      distrib.map( r, l, h )
+      val v = distrib.map( r, l, h )
+      if( verbose ) println( "  tend " + name + " at time " + time + " yields " + v )
+      v
    }
 
    def loAt( time: Float ) : Float = lo.levelAt( time )

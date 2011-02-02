@@ -66,6 +66,7 @@ class AnalysisBuffer( val numFrames: Int, val numChannels: Int, val sampleRate: 
          buf.position( idx * numChannels )
          buf.put( content )
          val res = idx == framesWrittenVar
+if( idx > framesWrittenVar ) println( "!!!!!!!! skipped frame" )
          if( res ) {
             framesWrittenVar = idx + 1
          }
