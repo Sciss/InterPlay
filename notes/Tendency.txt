@@ -1,0 +1,18 @@
+import Tendency._
+
+val t = tend( Lin, 0.0 -> (0.0, 1.0), 1.0 -> (3.0, 6.0), 4.0 -> (0.0, 1.0) )
+def smp( t: Tendency, n: Int = 1000 ) : Seq[ (Float, Float) ] = {
+   val maxT = t.lo.segments.foldLeft(0.0f)( (t, seg) => t + seg.dur )
+   (0 until n).map( i => {
+      val tim = i.linlin( 0, n - 1, 0.0f, maxT )
+      tim -> t.at( tim )
+   })( collection.breakOut )
+}
+
+Plot( smp( t ): _* )
+
+val t3 = tend( Exp, 0.0 -> (0.1, 1.0), 1.0 -> (0.1, 1.0) )
+Plot( smp( t3, 5000 ): _* )
+
+val t4 = tend( Lin, (0.0, (0.0, 1.0)), (1.0, (3.0, 6.0), 'sin), (4.0, (0.1, 1.0), 'exp) )
+Plot( smp( t4, 5000 ): _* )

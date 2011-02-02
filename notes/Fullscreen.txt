@@ -1,0 +1,18 @@
+import java.awt._
+import java.awt.event._
+import javax.swing._
+
+val ge = GraphicsEnvironment.getLocalGraphicsEnvironment()
+val sd = ge.getDefaultScreenDevice()
+sd.isFullScreenSupported
+val f = new JFrame( "Test" )
+val cp = f.getContentPane
+cp.add( new JButton( new AbstractAction( "Close" ) {
+    def actionPerformed( e: ActionEvent ) {
+        sd.setFullScreenWindow( null )
+    }
+}), BorderLayout.CENTER)
+f.pack
+f.setVisible( true )
+//f.setUndecorated( true )
+sd.setFullScreenWindow( f )

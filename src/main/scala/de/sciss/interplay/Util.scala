@@ -36,7 +36,7 @@ import collection.immutable.{IndexedSeq => IIdxSeq}
  * @version 0.11, 17-Aug-10
  */
 object Util {
-   private val rnd = new Random()
+   val rnd = new Random()
 
    def exprand( lo: Double, hi: Double ) : Double = {
       lo * math.exp( math.log( hi / lo ) * rnd.nextDouble )
