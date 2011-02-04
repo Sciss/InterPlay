@@ -42,8 +42,9 @@ import DSL._
 
 object Process {
    val verbose = true
-   val all = List( ProcSehen, ProcHoeren, ProcRiechen, ProcSchmecken, ProcTasten, ProcOrientieren, ProcGleichgewichten )
+//   val all = List( ProcSehen, ProcHoeren, ProcRiechen, ProcSchmecken, ProcTasten, ProcOrientieren, ProcGleichgewichten )
 //   val all = List( ProcRiechen )
+   val all = List( ProcHoeren )
 
    private val actor = new Actor { def act = loop { react {
       case d: Do => try {
@@ -68,6 +69,7 @@ object Process {
    def secsToFrames( secs: Double ) = (secs * (SAMPLE_RATE / AnalysisBuffer.anaWinStep)).toInt
    def framesToPos( idx: Int )      = idx.toDouble / (anaClientBuf.numFrames - 1)
    def frameToSecs( idx: Int )      = idx.toDouble * AnalysisBuffer.anaWinStep / SAMPLE_RATE
+   def secsToPos( secs: Double )    = framesToPos( secsToFrames( secs ))
 
    def afterCommit( tx: ProcTxn )( thunk: => Unit ) {
       require( tx.isActive, "Juhuuu. tx not active anymore" )

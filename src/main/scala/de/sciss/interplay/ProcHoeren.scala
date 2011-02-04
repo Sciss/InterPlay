@@ -34,6 +34,8 @@ import ugen._
 import DSL._
 import InterPlay._
 import SoundProcesses._
+import collection.immutable.IntMap
+import Tendency._
 
 /**
  * Listens to individual channels, and when they stay too quiet after a climax,
@@ -51,27 +53,47 @@ object ProcHoeren extends Process {
 //   lazy val MIN_WAIT      = (liveDur - 1) * 60
 //   lazy val MAX_WAIT      = liveDur * 60
 
-   val STICKY_DUR = 10
+   val MIN_DUR       = 1.0
+   val MAX_DUR       = 60.0
+
+   val STICKY_DUR    = 10.0
+   val REENTRY_DUR   = 5.0
+
+   val MAX_GENDELAY  = 3.0
+//   private val TEND_GENDELAY  = tend( "gendelay" )
+
+   private val anaRef   = Ref( Map.empty[ Proc, IntMap[ Org ]])   // ana-proc to chan->org
+   private val genRef   = Ref( Map.empty[ Proc, Org ])   // gen-proc to org
+
+   private case class Org( ch: Int, ana: Proc, gen: Proc, diff: Proc )
 
    def init( implicit tx: ProcTxn ) {
       filter( anaName ) {
-         val ptup    = pControl( "up", ParamSpec( 0, 64 ), 32 )
-         val ptdown  = pControl( "down", ParamSpec( 0, 64 ), 32 )
+//         val ptup    = pControl( "up", ParamSpec( 0, 16 ), 6 )
+         val ptdown  = pControl( "thresh", ParamSpec( 0, 16 ), 6 )
+         val pdly    = pControl( "delay", ParamSpec( 1, 16, ExpWarp ), 3 )
          graph { in =>
-            val threshUp = ptup.kr
+//            val threshUp   = ptup.kr
             val threshDown = ptdown.kr
+            val me         = Proc.local
             in.outputs.zipWithIndex.foreach { tup =>
                val (chSig, ch) = tup
                val loudness   = Loudness.kr( FFT( bufEmpty( 1024 ).id, chSig ))
                val lagged     = LagUD.kr( loudness, 0, 2 )
-               val schmidt    = Schmidt.kr( lagged, threshUp, threshDown )
-               val trig       = -HPZ1.kr( schmidt ) // goes >0 if schmidt goes from hi to lo
-               trig.react { ProcTxn.spawnAtomic { implicit tx => dang( ch )}}
+////lagged.poll( 1, label = "Loud" )
+//               val schmidt    = Schmidt.kr( lagged, threshUp, threshDown )
+//               val trig       = -HPZ1.kr( schmidt ) // goes >0 if schmidt goes from hi to lo
+
+               val trig = TDelay.kr( lagged < threshDown, pdly.kr )
+
+               trig.react { ProcTxn.spawnAtomic { implicit tx =>
+                  dang( me, ch )
+               }}
             }
-            val me = Proc.local
             Done.kr( Line.kr( 0, 0, STICKY_DUR )).react {
                ProcTxn.spawnAtomic { implicit tx =>
                   ProcessHelper.stopAndDispose( me )
+                  anaRef.transform( _ - me )
                   reentry
                }
             }
@@ -80,62 +102,106 @@ object ProcHoeren extends Process {
       }
 
       gen( name ) {
+         val pdly    = pScalar( "dly", ParamSpec( 0, MAX_GENDELAY ), 0 )
          val ppos    = pScalar( "pos", ParamSpec( 0, 1 ), 0 )
-         val pdur    = pScalar( "dur", ParamSpec( 0.1, 60.0 ), TEND_STEADY.overallLo )
+         val pdur    = pScalar( "dur", ParamSpec( MIN_DUR, MAX_DUR ), MIN_DUR )
          val pspeed  = pScalar( "speed", ParamSpec( 1.0/8, 8, ExpWarp ), 1 )
          graph {
             val speed      = pspeed.ir
             val dur0       = pdur.ir
             val dur        = dur0 / speed
-            val atk        = 0.01
+            val atk        = 0.011 // 0.02
 //            val rls        = (dur - atk).min( 2 ).max( 0 )
-            val rls        = (dur - atk - 1).max( 0 )
-            val sus        = (dur - rls - atk).max( 0 )
+            val dly        = pdly.ir
+            val rls0       = dur - atk
+            val sus        = (rls0 - 1).min( 0.5 ).max( 0 )
+//            val rls        = (rls0 - rls0.min( 0.5 )) // .max( 0 )
+            val rls        = rls0 - sus
+//            val sus        = (dur - rls - atk).max( 0 )
             val freq       = speed / dur
             val sig        = PlayBuf.ar( liveBuf.numChannels, liveBuf.id, speed, startPos = ppos.ir * BufFrames.ir( liveBuf.id ), loop = 0 )
-            val env        = EnvGen.ar( Env.linen( atk, sus, rls ))
+//            val env        = EnvGen.ar( Env.linen( atk, sus, rls, shape = cubShape ))
+
+//DC.kr( dly ).poll( 0.1, label = "dly" )
+//DC.kr( atk ).poll( 0.1, label = "atk" )
+//DC.kr( sus ).poll( 0.1, label = "sus" )
+//DC.kr( rls ).poll( 0.1, label = "rls" )
+
+            val env        = EnvGen.ar( new Env( 0, List( EnvSeg( dly, 0 ), EnvSeg( atk, 1, sqrShape ), EnvSeg( sus, 1 ), EnvSeg( rls, 0, sqrShape ))))
             val me         = Proc.local
             Done.kr( env ).react {
                ProcTxn.spawnAtomic { implicit tx =>
-                  Process.removeAndDispose( org.diff, 0.1 )
-//                  stopPlaying
-//                  reentry()
+                  genRef().get( me ) match {
+                     case Some( org ) =>
+                        genRef.transform( _ - me )
+                        anaRef.transform { anaMap =>
+                           anaMap.get( org.ana ).map( intMap => {
+                              val intMap1 = intMap - org.ch
+                              if( intMap1.isEmpty ) {
+                                 anaMap - org.ana
+                              } else {
+                                 anaMap + (org.ana -> intMap1)
+                              }
+                           }).getOrElse( anaMap )
+                        }
+                        Process.removeAndDispose( org.diff )
+
+                     case None => inform( "Wooop. no org for gen-proc", force = true )
+                  }
                }
             }
-            val cmp = Compander.ar( sig, sig, thresh = 0.5, ratioBelow = 1.0/4, ratioAbove = 1, attack = 0.01, release = 1.0 )   // compress low stuff
-            cmp * env
+//val sig1 = WhiteNoise.ar( Seq.fill( sig.numOutputs )( 0.2 ))
+            val cmp = Compander.ar( sig * env, sig, thresh = 0.5, ratioBelow = 1.0/3, ratioAbove = 1, attack = 0.01, release = 1.0 )   // compress low stuff
+//            cmp * env
+            cmp
+//            WhiteNoise.ar( Seq.fill( cmp.numOutputs )( 0.2 )) * env
          }
       }
 
-      delay( liveDur * 60 )( ProcTxn.atomic( start ))
+//      delay( liveDur * 60 )( ProcTxn.atomic( start ))
+delay( 20 )( ProcTxn.atomic( start( _ )))
    }
 
    private def start( implicit tx: ProcTxn ) {
-      error( "NOT YET" )
+      if( canReplaceTail( ReplaceAll )) {
+         val p = factory( anaName ).make
+         replaceTail( p, point = ReplaceAll )
+      }
    }
 
    private def reentry( implicit tx: ProcTxn ) {
-      error( "NOT YET" )
+      delay( REENTRY_DUR )( ProcTxn.atomic( start( _ )))
    }
 
-   private def dang( ch: Int )( implicit tx: ProcTxn ) {
+   private def dang( ana: Proc, ch: Int )( implicit tx: ProcTxn ) {
+      if( anaRef().get( ana ).flatMap( _.get( ch )).isDefined ) return // no double dangs per channel
+
       inform( "dang " + ch )
       val ms   = anaMarkers.all.toIndexedSeq
       if( ms.isEmpty ) return
       val m    = Util.choose( ms )
       val mi   = ms.indexOf( m )
-      val m2   = if( mi == ms.size - 1 ) anaClientBuf.framesWritten else ms( mi + 1 )
+      val m0   = math.max( 0, m - 1 )
+      val m2   = if( mi == ms.size - 1 ) anaClientBuf.framesWritten else math.max( m0, ms( mi + 1 ) /* - 1 */ )
 
-      val pos  = framesToPos( math.max( 0, m - 1 ))
-      val dur  = math.max( 1.0, frameToSecs( m2 ) - frameToSecs( m ))
+//      val pos  = framesToPos( m0 )
+      val dur  = math.min( MAX_DUR, math.max( MIN_DUR, frameToSecs( m2 ) - frameToSecs( m )))
+      val secs0= frameToSecs( m0 )
+      val dly  = math.min( secs0, Util.rand( MAX_GENDELAY ))
+      val pos  = secsToPos( secs0 - dly )
 
       val p    = factory( name ).make
       val d    = factory( "O-one" ).make
+      p.control( "dly" ).v = dly
       p.control( "pos" ).v = pos
       p.control( "dur" ).v = dur
       // XXX speed? tend!
       d.control( "idx" ).v = ch
       p ~> d
       addTail( d )
+
+      val org = Org( ch, ana, p, d )
+      anaRef.transform( map => map + (ana -> (map.getOrElse( ana, IntMap.empty ) + (ch -> org))))
+      genRef.transform( _ + (p -> org) )
    }
 }

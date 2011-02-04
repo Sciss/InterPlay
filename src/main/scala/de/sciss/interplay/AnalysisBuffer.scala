@@ -63,10 +63,16 @@ class AnalysisBuffer( val numFrames: Int, val numChannels: Int, val sampleRate: 
 //   def view : FloatBuffer = buf.duplicate
    def setFrame( idx: Int, content: Frame ) {
       val lastFrame = buf.synchronized {
+         if( idx > framesWrittenVar ) {
+            println( "!!! skipped frames. written = " + framesWrittenVar + " ; set = " + idx )
+            var i = framesWrittenVar; while( i < idx ) {
+            buf.position( i * numChannels )
+            buf.put( content )
+            i += 1 }
+         }
          buf.position( idx * numChannels )
          buf.put( content )
-         val res = idx == framesWrittenVar
-if( idx > framesWrittenVar ) println( "!!!!!!!! skipped frame" )
+         val res = idx >= framesWrittenVar
          if( res ) {
             framesWrittenVar = idx + 1
          }

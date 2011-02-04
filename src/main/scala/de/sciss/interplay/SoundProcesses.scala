@@ -42,7 +42,7 @@ import de.sciss.osc.OSCBundle
 import java.util.Locale
 
 object SoundProcesses {
-   val ONSET_THRESH  = 0.3
+   val ONSET_THRESH  = 0.5 // 0.3
    val diskBufSize   = 32768
    val liveDur    = 3.0    // minutes
    val totalDur   = 6.0    // minutes
@@ -136,7 +136,7 @@ object SoundProcesses {
                val iter    = data.iterator
                val cnt     = iter.next.toInt - 1
                val onset   = iter.next > 0
-//println( "cnt = " + cnt + " (" + maxLiveAnaFr + ")" )
+//println( "cnt = " + cnt )
                if( cnt < maxLiveAnaFr ) {
                   var i = 0; while( i < numMelCoeffs ) {
                      frame( i ) = (iter.next.toFloat + normAdd( i )) * normMul( i )
