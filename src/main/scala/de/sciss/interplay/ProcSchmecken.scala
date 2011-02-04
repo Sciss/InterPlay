@@ -38,6 +38,7 @@ import java.io.File
 import InterPlay._
 import SoundProcesses._
 import Konvulsiv._
+import Tendency._
 
 /**
  * Records part of the sum signal and runs it through FScape.
@@ -48,21 +49,29 @@ import Konvulsiv._
 object ProcSchmecken extends Process {
    import Process._
 
+   val name    = "p-schmeck"
+   val verbose = true
+
    val MIN_WAIT   = 10.0
    val MAX_WAIT   = 30.0
    val MIN_REC    = 10.0
    val MAX_REC    = 45.0
-   val ALL_PROB   = 0.333
+//   val ALL_PROB   = 0.333
 
-   val name    = "p-schmeck"
-   val verbose = true
+   val MIN_KONVULDLY = 0.1
+   val MAX_KONVULDLY = 10.0
+   val MIN_RETRY     = 1.0
+   val MAX_RETRY     = 4.0
 
    private val KONVUL_NUM = konvul( name + "-num", (1.2, 1.8), (2, 6) ) { (t, k) =>
-      Some( (t + 0.3, t + 0.5) -> (2, 6) )
+      Some( (t + 0.15, t + 0.3) -> (2, 6) )
    }
 
+   private val TEND_FASTRETRY = tend( name + "fastretry", Lin, 0.0 -> (0.0, 0.0), 0.85 -> (0.0, 0.0), 1.3 -> (1.0, 1.0), (2.0, (0.0, 0.0), 'sin) )
+   private val TEND_ALLPROB   = tend( name + "allprob", Lin, 0.0 -> (0.3333, 0.3333), 0.85 -> (0.3333, 0.3333), 1.3 -> (1.0, 1.0), (2.0, (0.3333, 0.33333), 'sin) )
+
    def init(  implicit tx: ProcTxn ) {
-      val genFact = filter( name ) {
+      filter( name ) {
          val pdur    = pScalar( "dur", ParamSpec( MIN_REC, MAX_REC ), MIN_REC )
          val ppos    = pScalar( "pos", ParamSpec( 0, 1 ), 0 )
          val sumPath = new File( REC_PATH, "sum" )
@@ -97,37 +106,44 @@ object ProcSchmecken extends Process {
                val t = exprand( MIN_WAIT, MAX_WAIT )
                atomic( name + " gleichgew listener" ) { implicit tx =>
                   startThinking
-                  delay( t ) {
-                     // XXX not clear why, but atomic instead of spawnAtomic here
-                     // creates timeouts
-                     spawnAtomic( name + " delay done" ) { implicit tx =>
-                        stopThinking
-
-                        def funkyShit( implicit tx: ProcTxn ) : Boolean = {
-                           val pt   = if( coin( ALL_PROB )) ReplaceAll else ReplaceInternal
-                           val can  = canReplaceTail( pt )
-                           if( can ) {
-                              val p = genFact.make
-                              p.control( "dur" ).v = rrand( MIN_REC, MAX_REC )
-                              p.control( "pos" ).v = 0.0
-                              replaceTail( p, point = pt )
-                           }
-                           can
-                        }
-
-                        if( funkyShit ) {
-                           startPlaying    // XXX stopPlaying missing
-                           for( n <- 1 until KONVUL_NUM.decideOrElse( 1 )) {
-                              inform( "konvul " + n )
-                              spawnAtomic( name + " konvul " + n )( funkyShit( _ ))
-                           }
-                        }
-                     }
-                  }
+                  makeDemDelay( t )
                }
             }
             oldState = u.state
          }
       })
+   }
+
+   private def delayDone( implicit tx: ProcTxn ) {
+      stopThinking
+
+      def funkyShit( implicit tx: ProcTxn ) : Boolean = {
+         val pt   = if( coin( TEND_ALLPROB.decide )) ReplaceAll else ReplaceInternal
+         val can  = canReplaceTail( pt )
+         if( can ) {
+            val p = factory( name ).make
+            p.control( "dur" ).v = rrand( MIN_REC, MAX_REC )
+            p.control( "pos" ).v = 0.0
+            replaceTail( p, point = pt )
+         }
+         can
+      }
+
+      if( funkyShit ) {
+         startPlaying    // XXX stopPlaying missing
+         for( n <- 1 until KONVUL_NUM.decideOrElse( 1 )) {
+            delay( exprand( MIN_KONVULDLY, MAX_KONVULDLY ))( spawnAtomic( name + " konvul " + n ) { implicit tx =>
+               inform( "konvul " + n )
+               funkyShit
+            })
+         }
+      } else if( TEND_FASTRETRY.decideInt > 0 ) {
+         val t = exprand( MIN_RETRY, MAX_RETRY )
+         makeDemDelay( t )
+      }
+   }
+
+   private def makeDemDelay( t: Double )( implicit tx: ProcTxn ) {
+      delay( t )( spawnAtomic( name + " delay done" )( delayDone( _ )))
    }
 }

@@ -45,7 +45,7 @@ object SoundProcesses {
    val ONSET_THRESH  = 0.5 // 0.3
    val diskBufSize   = 32768
    val liveDur    = 3.0    // minutes
-   val totalDur   = 6.0    // minutes
+   val totalDur   = 7.0 // 6.0    // minutes
 
 //   val LIVE_AMP_SPEC = ParamSpec( 0.1, 10, ExpWarp ) -> 0.5
    val LIVE_AMP_SPEC = ParamSpec( 0.0, 1, LinWarp ) -> 0.3333

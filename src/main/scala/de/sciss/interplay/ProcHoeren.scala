@@ -168,11 +168,12 @@ object ProcHoeren extends Process {
    }
 
    private def start( implicit tx: ProcTxn ) {
-      if( canReplaceTail( ReplaceAll )) {
+// we don't need to test if we can replace the all-tail, that's always possible
+//      if( canReplaceTail( ReplaceAll )) {
          val p = factory( anaName ).make
          p.control( "dur" ).v = TEND_STICKY.decide
          replaceTail( p, point = ReplaceAll )
-      }
+//      }
    }
 
    private def reentry( implicit tx: ProcTxn ) {

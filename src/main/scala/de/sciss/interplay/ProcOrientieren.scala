@@ -34,6 +34,7 @@ import ugen._
 import DSL._
 import InterPlay._
 import Util._
+import Tendency._
 import Konvulsiv._
 
 /**
@@ -60,6 +61,8 @@ object ProcOrientieren extends Process {
    private val KONVUL_NUM = konvul( name + "-num", (1.2, 1.8), (2, 4) ) { (t, k) =>
       Some( (t + 0.3, t + 0.5) -> (2, 4) )
    }
+
+   private val TEND_RETRY  = tend( name + "-retry", Lin, 0.0 -> (0.3333, 0.3333), 0.95 -> (0.3333, 0.3333), (1.5, (0.05, 0.05), 'cub), (2.0, (0.3333, 0.3333), 'sin) )
 
    def init(  implicit tx: ProcTxn ) {
       filter( name ) {
@@ -124,14 +127,15 @@ object ProcOrientieren extends Process {
                   spawnAtomic( name + " konvulsiv " + n )( funkyShit( _ ))
                }
             } else {
-               reentry( 0.3333 )
+               reentry( TEND_RETRY.decide )
             }
          }
       }
    }
 
    private def reentry( factor: Double = 1.0 )( implicit tx: ProcTxn ) {
-      inform( "Re-entry" )
-      start( exprand( MIN_REENTRY, MAX_REENTRY ) * factor )
+      val t = exprand( MIN_REENTRY, MAX_REENTRY ) * factor
+      inform( "Re-entry after " + t + "s" )
+      start( t )
    }
 }

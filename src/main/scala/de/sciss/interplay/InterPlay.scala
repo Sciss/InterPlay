@@ -75,7 +75,7 @@ object InterPlay {
 
    val USE_MIDI            = true
 
-   var LIVE_FILE           = Some( "live110131_214418.irc" ) // None // Some( "live110125_143645.irc" ) // Some( "live110128_113557.irc" ) // Some( "live110128_121639.irc" )
+   var LIVE_FILE           = None // Some( "live110131_214418.irc" ) // None // Some( "live110125_143645.irc" ) // Some( "live110128_113557.irc" ) // Some( "live110128_121639.irc" )
    val LIVE_MODE           = if( LIVE_FILE.isDefined ) 1 else 0
 
 //   println( "MIC_AND_PEOPLE = " + MIC_AND_PEOPLE )
