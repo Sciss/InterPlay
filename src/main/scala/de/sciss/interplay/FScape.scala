@@ -54,7 +54,7 @@ object FScape {
       val outPath = File.createTempFile( "fsc", ".aif", FSC_PATH )
       val doc = Wavelet( inPath.getAbsolutePath, outPath.getAbsolutePath, OutputSpec.aiffInt, Gain.normalized, filter = "daub16", trunc = true )
       fsc.process( "wavelet", doc ) {
-         case true   => ProcTxn.spawnAtomic { implicit tx => inject( outPath )}
+         case true   => IPProcess.spawnAtomic( "injectWavelet fscape done" ) { implicit tx => inject( outPath )}
          case false  => println( "Failure!" )
       }
    }
@@ -75,9 +75,9 @@ object FScape {
          graph {
             val sig = DiskIn.ar( spec.numChannels, bufCue( outPath.getAbsolutePath ).id )
             Done.kr( Line.kr( 0, 0, pdur.ir )).react {
-               ProcTxn.spawnAtomic { implicit tx =>
+               IPProcess.spawnAtomic( "fscape inject removal" ) { implicit tx =>
 //                  ProcessHelper.stopAndDispose( d, 0.1, postFun = tx => ProcessHelper.stopAndDispose( g )( tx ))
-                  IPProcess.removeAndDispose( d, 0.1 )
+                  IPProcess.removeAndDispose( "fscape inject removal", d, 0.1 )
                }
             }
             sig
@@ -97,7 +97,7 @@ object FScape {
       // the output bus to meter connection later
       // ; XXX TODO : this is still a race condition; we should thus
       // register a model and wait for that bastard to be ready...
-//      ProcTxn.spawnAtomic { implicit tx => xfade( 0.1 ) { d.play }}
+//      spawnAtomic { implicit tx => xfade( 0.1 ) { d.play }}
    }
 
    def createTempAudioFile( src: AudioFile, sampleFormat: Option[ SampleFormat ] = None ) : AudioFile = {

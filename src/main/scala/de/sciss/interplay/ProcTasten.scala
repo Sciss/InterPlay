@@ -64,14 +64,14 @@ object ProcTasten extends Process {
          val pdur = pScalar( "dur", ParamSpec( 1, 240 ), 20 )
          graph {
             val me   = Proc.local
-            val org  = ProcTxn.atomic( orgRef()( _ ))( me )
+            val org  = atomic( name + " gen getorg" )( orgRef()( _ ))( me )
             val spec = audioFileSpec( org.path )
             val sig  = DiskIn.ar( spec.numChannels, bufCue( org.path ).id )
             Done.kr( Line.kr( 0, 0, pdur.ir )).react {
-               ProcTxn.spawnAtomic { implicit tx =>
+               spawnAtomic( name + " gen removal" ) { implicit tx =>
                   orgRef.transform( _ - me )
 //                  ProcessHelper.stopAndDispose( d, 0.1, postFun = tx => ProcessHelper.stopAndDispose( g )( tx ))
-                  Process.removeAndDispose( org.diff, 0.1 )
+                  Process.removeAndDispose( name + " gen removal", org.diff, 0.1 )
                }
             }
             sig
@@ -90,7 +90,7 @@ object ProcTasten extends Process {
 
    private def waitForAnaDone {
       val temp = choose( Similarity.templates )._2
-      ProcTxn.atomic { implicit tx =>
+      atomic( name + " waitForAnaDone" ) { implicit tx =>
          playPath match {
             case Some( inPath ) => perform( temp, inPath )
             case None => {
@@ -110,7 +110,7 @@ object ProcTasten extends Process {
       informDir( "search result : " + res )
       if( res.nonEmpty ) {
          process( inPath, res )
-      } else ProcTxn.atomic { implicit tx => stopThinking }
+      } else atomic( name + " searchAnaDone empty" ) { implicit tx => stopThinking }
    }
 
    private def process( inPath: File, res: Iterable[ Sample ]) {
@@ -172,7 +172,8 @@ object ProcTasten extends Process {
             def gugu( jobs: List[ FScapeJobs.Bleach ], first: Boolean ) {
                jobs match {
                   case bleach :: tail =>
-                     ProcTxn.atomic { implicit tx =>
+                     // cannot nest atomics it seems! hence spawn
+                     spawnAtomic( name + " fscape done" ) { implicit tx =>
                         if( first ) {
                            stopThinking
                            startPlaying
@@ -187,15 +188,18 @@ object ProcTasten extends Process {
             }
             gugu( jobs, true )
          } else {
-            ProcTxn.atomic { implicit tx => stopThinking }
-            informDir( "FScape failure!", force = true )
+            atomic( name + " fscape failed" ) { implicit tx =>
+               inform( "FScape failure!", force = true )
+               stopThinking
+            }
          }
       }
    }
 
    private def reentry( implicit tx: ProcTxn ) {
       val dlyTime = rrand( MIN_REENTRY, MAX_REENTRY )
-      delay( dlyTime )( ProcTxn.atomic( start( _ )))
+      // XXX not sure, but for safety use spawnAtomic here
+      delay( dlyTime )( spawnAtomic( name + " reentry done" )( start( _ )))
    }
 
    private def inject( path: String )( implicit tx: ProcTxn ) {

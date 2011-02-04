@@ -82,18 +82,18 @@ object ProcRiechen extends Process {
          val (pdur, pmix) = pDurMix
          val me = Proc.local
          Done.kr( Line.kr( 0, 0, pdur.ir )).react {
-            ProcTxn.spawnAtomic { implicit tx =>
+            spawnAtomic( name + " mix done" ) { implicit tx =>
 // unfortunately currently no way to determine end of this xfade...
 //             xfade( ... )( me.bypass )
 //               ProcessHelper.whenFadeDone()
                glide( exprand( MIN_FADEOUT, MAX_FADEOUT ))( me.control( "mix" ).v = 0 )
-               ProcessHelper.whenGlideDone( me, "mix" ) { implicit tx =>
+               ProcessHelper.whenGlideDone( name + " mix done", me, "mix" ) { implicit tx =>
                   orgRef() match {
                      case Some( orgOld ) =>
                         val orgNew = orgOld.copy( fltP = orgOld.fltP - me )
                         if( orgNew.fltP.isEmpty ) {  // this was the last one
                            orgRef.set( None )
-                           removeAndDisposeChain( orgNew.catchP, orgNew.throwP )
+                           removeAndDisposeChain( name + " mix all done", orgNew.catchP, orgNew.throwP )
                            reentry()
                         } else {
                            orgRef.set( Some( orgNew ))
@@ -133,37 +133,35 @@ object ProcRiechen extends Process {
    }
 
    private def start( dlyTime: Double )( implicit tx: ProcTxn ) {
-      delay( dlyTime )( perform )
+      delay( dlyTime )( spawnAtomic( name + " perform" )( perform( _ )))
    }
 
-   private def perform {
-      ProcTxn.atomic { implicit tx =>
-         if( orgRef().isDefined ) {
-            inform( "can't perform - old performance ongoing!", force = true )
-            return // reentry??
+   private def perform( implicit tx: ProcTxn ) {
+      if( orgRef().isDefined ) {
+         inform( "can't perform - old performance ongoing!", force = true )
+         return // reentry??
+      }
+      inform( "perform" )
+      startPlaying
+      val pt = if( liveActive ) {
+         val rnd = rand( 1.0 )
+         if( rnd <= LIVE_PROB ) ReplaceLive else if( rnd - LIVE_PROB <= INT_PROB ) ReplaceInternal else ReplaceAll
+      } else ReplaceInternal
+      if( canReplaceTail( pt )) {
+         val pin  = factory( catchName ).make
+         val pout = factory( throwName ).make
+         val modChans: IIdxSeq[ Int ] = scramble2( 0 until MASTER_NUMCHANNELS )
+         val pflt = List.tabulate( MASTER_NUMCHANNELS ) { ch =>
+            val res = factory( urn.next ).make
+            res.control( "dur" ).v = exprand( MIN_DUR, MAX_DUR )
+            pin.audioOutput( "out" + ch ) ~> res
+            pin.audioOutput( "out" + modChans( ch )) ~> res.audioInput( "in2" )
+            res ~> pout.audioInput( "in" + ch )
+            res
          }
-         inform( "perform" )
-         startPlaying
-         val pt = if( liveActive ) {
-            val rnd = rand( 1.0 )
-            if( rnd <= LIVE_PROB ) ReplaceLive else if( rnd - LIVE_PROB <= INT_PROB ) ReplaceInternal else ReplaceAll
-         } else ReplaceInternal
-         if( canReplaceTail( pt )) {
-            val pin  = factory( catchName ).make
-            val pout = factory( throwName ).make
-            val modChans: IIdxSeq[ Int ] = scramble2( 0 until MASTER_NUMCHANNELS )
-            val pflt = List.tabulate( MASTER_NUMCHANNELS ) { ch =>
-               val res = factory( urn.next ).make
-               res.control( "dur" ).v = exprand( MIN_DUR, MAX_DUR )
-               pin.audioOutput( "out" + ch ) ~> res
-               pin.audioOutput( "out" + modChans( ch )) ~> res.audioInput( "in2" )
-               res ~> pout.audioInput( "in" + ch )
-               res
-            }
-            val fdts = pflt.map( _ => exprand( MIN_FADEIN, MAX_FADEIN ))
-            orgRef.set( Some( Org( pin, pout, pflt.toSet )))
-            replaceTailChain( pin, pout, pflt, fadeTimes = Some( fdts ), point = pt )
-         }
+         val fdts = pflt.map( _ => exprand( MIN_FADEIN, MAX_FADEIN ))
+         orgRef.set( Some( Org( pin, pout, pflt.toSet )))
+         replaceTailChain( pin, pout, pflt, fadeTimes = Some( fdts ), point = pt )
       }
    }
 }

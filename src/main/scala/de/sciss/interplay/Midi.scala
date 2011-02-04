@@ -72,7 +72,7 @@ object Midi {
                            if( DUMP_IN ) inform( "cc in,  ch " + ch + ", num " + num + ", v " + v )
                            if( num == 7 ) {           // faders
                               if( ch == 0 ) {         // mic
-                                 ProcTxn.atomic { implicit tx =>
+                                 Process.spawnAtomic( "midi live amp" ) { implicit tx =>
                                     if( pLiveDiff.state.valid ) {
                                        val ctrl = pLiveDiff.control( "amp" )
                                        // crucial to not interfere with the automatic fadeout gaga
@@ -82,7 +82,7 @@ object Midi {
                                     }
                                  }
                               } else if( ch == 1 ) {  // main
-                                 ProcTxn.atomic { implicit tx =>
+                                 Process.spawnAtomic( "midi master amp" ) { implicit tx =>
                                     val vol = NuagesPanel.masterAmpSpec._1.map( v.toDouble / 127 )
 //inform( "setVolume " + vol )
                                     p.setMasterVolume( vol )
@@ -91,7 +91,7 @@ object Midi {
                            } else if( num == 89 ) {   // play
                               if( v > 0 ) {
                                  if( verbose ) println( "START LIVE" )
-                                 ProcTxn.spawnAtomic( startLive( _ ))
+                                 Process.spawnAtomic( "midi startLive" )( startLive( _ ))
                               }
                            }
 

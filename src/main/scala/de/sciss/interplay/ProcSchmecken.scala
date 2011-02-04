@@ -37,6 +37,7 @@ import Util._
 import java.io.File
 import InterPlay._
 import SoundProcesses._
+import Konvulsiv._
 
 /**
  * Records part of the sum signal and runs it through FScape.
@@ -56,6 +57,10 @@ object ProcSchmecken extends Process {
    val name    = "p-schmeck"
    val verbose = true
 
+   private val KONVUL_NUM = konvul( name + "-num", (1.2, 1.8), (2, 6) ) { (t, k) =>
+      Some( (t + 0.3, t + 0.5) -> (2, 6) )
+   }
+
    def init(  implicit tx: ProcTxn ) {
       val genFact = filter( name ) {
          val pdur    = pScalar( "dur", ParamSpec( MIN_REC, MAX_REC ), MIN_REC )
@@ -72,10 +77,10 @@ object ProcSchmecken extends Process {
             val me         = Proc.local
             1.react( phase ) { data =>
                val Seq( ph ) = data
-               ProcTxn.spawnAtomic { implicit tx => me.control( "pos" ).v = ph }
+               spawnAtomic( name + " gen pos update" ) { implicit tx => me.control( "pos" ).v = ph }
             }
             Done.kr( phase ).react {
-               ProcTxn.spawnAtomic { implicit tx =>
+               spawnAtomic( name + " gen removal" ) { implicit tx =>
                   ProcessHelper.stopAndDispose( me )
                   FScape.injectWavelet( recPath )
                }
@@ -90,18 +95,32 @@ object ProcSchmecken extends Process {
          def updated( u: Update ) {
             if( u.state.valid && u.state.playing && !oldState.playing ) {
                val t = exprand( MIN_WAIT, MAX_WAIT )
-               ProcTxn.atomic { implicit tx =>
+               atomic( name + " gleichgew listener" ) { implicit tx =>
                   startThinking
                   delay( t ) {
-                     ProcTxn.atomic { implicit tx =>
+                     // XXX not clear why, but atomic instead of spawnAtomic here
+                     // creates timeouts
+                     spawnAtomic( name + " delay done" ) { implicit tx =>
                         stopThinking
-                        val pt = if( coin( ALL_PROB )) ReplaceAll else ReplaceInternal
-                        if( canReplaceTail( pt )) {
-                           val p = genFact.make
-                           p.control( "dur" ).v = rrand( MIN_REC, MAX_REC )
-                           p.control( "pos" ).v = 0.0
-                           replaceTail( p, point = pt )
+
+                        def funkyShit( implicit tx: ProcTxn ) : Boolean = {
+                           val pt   = if( coin( ALL_PROB )) ReplaceAll else ReplaceInternal
+                           val can  = canReplaceTail( pt )
+                           if( can ) {
+                              val p = genFact.make
+                              p.control( "dur" ).v = rrand( MIN_REC, MAX_REC )
+                              p.control( "pos" ).v = 0.0
+                              replaceTail( p, point = pt )
+                           }
+                           can
+                        }
+
+                        if( funkyShit ) {
                            startPlaying    // XXX stopPlaying missing
+                           for( n <- 1 until KONVUL_NUM.decideOrElse( 1 )) {
+                              inform( "konvul " + n )
+                              spawnAtomic( name + " konvul " + n )( funkyShit( _ ))
+                           }
                         }
                      }
                   }

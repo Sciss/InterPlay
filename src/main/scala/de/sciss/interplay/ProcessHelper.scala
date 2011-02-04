@@ -38,14 +38,14 @@ object ProcessHelper {
 
 //   def createTempAudioFile = File.createTempFile( "semi", ".aif", new File( TEMP_PATH ))
 
-   def whenGlideDone( p: Proc, ctrlName: String )( fun: ProcTxn => Unit )( implicit tx: ProcTxn ) {
+   def whenGlideDone( info: => String, p: Proc, ctrlName: String )( fun: ProcTxn => Unit )( implicit tx: ProcTxn ) {
       if( p.control( ctrlName ).cv.mapping.isEmpty ) {
          fun( tx )
       } else {
          lazy val l: Proc.Listener = new Proc.Listener {
             def updated( u: Proc.Update ) {
                if( u.controls.find( tup => (tup._1.name == ctrlName) && tup._2.mapping.isEmpty ).isDefined ) {
-                  ProcTxn.atomic { implicit tx =>
+                  Process.atomic( "helper : whenGlideDone listener (" + info + ")" ) { implicit tx =>
                      p.removeListener( l )
                      fun( tx )
                   }
@@ -63,7 +63,7 @@ object ProcessHelper {
          lazy val l: Proc.Listener = new Proc.Listener {
             def updated( u: Proc.Update ) {
                if( !u.state.fading ) {
-                  ProcTxn.atomic { implicit tx =>
+                  Process.atomic( "helper : whenFadeDone listener" ) { implicit tx =>
                      p.removeListener( l )
                      fun( tx )
                   }
@@ -80,13 +80,13 @@ object ProcessHelper {
          if( !u.state.fading && (u.state.bypassed || u.controls.find( tup =>
             (tup._1.name == "amp") && tup._2.mapping.isEmpty ).isDefined) ) {
             if( verbose ) println( "" + new java.util.Date() + " FINAL-DISPOSE " + u.proc )
-            disposeProc( u.proc, preFun, postFun ) // ProcTxn.atomic { implicit tx => }
+            disposeProc( u.proc, preFun, postFun ) // atomic { implicit tx => }
          }
       }
    }
 
    private def disposeProc( proc: Proc, preFun: ProcTxn => Unit, postFun: ProcTxn => Unit ) {
-      ProcTxn.atomic { implicit tx =>
+      Process.atomic( "helper : disposeProc" ) { implicit tx =>
          preFun( tx )
          proc.anatomy match {
             case ProcFilter   => disposeFilter( proc )
@@ -159,7 +159,7 @@ object ProcessHelper {
          def updated( u: Proc.Update ) {
             if( u.audioBusesConnected.find( b => (b.sourceVertex == p) && (b.out.name == "out") ).isDefined ) {
                 // why we need spawn?? wolkenpumpe doesn't get the new state update otherwise. why?? XXX
-               ProcTxn.spawnAtomic { implicit tx =>
+               Process.spawnAtomic( "helper : playNewDiff" ) { implicit tx =>
                   p.removeListener( pl )
                   if( fadeTime > 0 ) xfade( fadeTime ) { p.play } else p.play
                   postFun( tx )

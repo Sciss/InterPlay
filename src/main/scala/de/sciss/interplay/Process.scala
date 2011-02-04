@@ -76,12 +76,14 @@ object Process {
       tx.afterCommit( _ => thunk )
    }
 
+   private lazy val delayTimer = new Timer( true )
+
    def delay( dur: Double )( thunk: => Unit )( implicit tx: ProcTxn ) /* : TimerTask = */ {
       afterCommit( tx ) {
          val res = new TimerTask {
             def run = thunk
          }
-         val timer = new Timer( true )
+         val timer = delayTimer // val timer = new Timer( true )
          timer.schedule( res, (dur * 1000).toLong )
       }
 //      res
@@ -100,7 +102,7 @@ object Process {
          def updated( u: Proc.Update ) {
             if( u.audioBusesConnected.find( b => (b.sourceVertex == p) && (b.out.name == "out") ).isDefined ) {
                 // why we need spawn?? wolkenpumpe doesn't get the new state update otherwise. why?? XXX
-               ProcTxn.spawnAtomic { implicit tx =>
+               spawnAtomic( "addTail listener" ) { implicit tx =>
                   p.removeListener( pl )
 //                  if( fadeTime > 0 ) xfade( fadeTime ) { p.play } else p.play
                   if( fadeTime > 0 ) {
@@ -201,12 +203,12 @@ object Process {
     * outputs, then the inputs, then disposes the proc, and recursively
     * does this for all the proc's inputs
     */
-   def removeAndDispose( p: Proc, fadeTime: Double = 0.0, postFun: ProcTxn => Unit = _ => () )( implicit tx: ProcTxn ) {
+   def removeAndDispose( info: => String, p: Proc, fadeTime: Double = 0.0, postFun: ProcTxn => Unit = _ => () )( implicit tx: ProcTxn ) {
       if( fadeTime > 0 ) glide( fadeTime ) {
          val ctrl = p.control( "amp" )
          ctrl.v = ctrl.spec.lo
       }
-      ProcessHelper.whenGlideDone( p, "amp" ) { implicit tx =>
+      ProcessHelper.whenGlideDone( info, p, "amp" ) { implicit tx =>
          disposeSubTree( p )
          postFun( tx )
       }
@@ -240,7 +242,7 @@ object Process {
     * Note: this still leaves a suspicious rollback-error printing... however all procs seem to get properly disposed,
     * so let's ignore that for the moment...
     */
-   def removeAndDisposeChain( pin: Proc, pout: Proc, fadeTime: Double = 0.0, preFun: ProcTxn => Unit = _ => (), postFun: ProcTxn => Unit = _ => () )( implicit tx: ProcTxn ) {
+   def removeAndDisposeChain( info: => String, pin: Proc, pout: Proc, fadeTime: Double = 0.0, preFun: ProcTxn => Unit = _ => (), postFun: ProcTxn => Unit = _ => () )( implicit tx: ProcTxn ) {
       val ctrl = pout.control( "amp" )
 
       def dispo( implicit tx: ProcTxn ) {
@@ -279,7 +281,7 @@ srcs.foreach { p =>
          dispo
       } else {
          glide( fadeTime ) { ctrl.v = ctrl.spec.lo }
-         ProcessHelper.whenGlideDone( pout, ctrl.name )( dispo( _ ))
+         ProcessHelper.whenGlideDone( info, pout, ctrl.name )( dispo( _ ))
       }
    }
 
@@ -301,7 +303,7 @@ srcs.foreach { p =>
          } else {
             lazy val l: Model.Listener = {
                case AnalysisBuffer.FrameUpdated( idx, last ) => if( idx >= minFrames ) {
-                  ProcTxn.atomic { implicit tx =>
+                  atomic( "waitForAnalysis listener" ) { implicit tx =>
                      anaClientBuf.removeListener( l )
                      afterCommit( tx )( thunk )
                   }
@@ -309,6 +311,32 @@ srcs.foreach { p =>
             }
             anaClientBuf.addListener( l )
          }
+      }
+   }
+
+   private def blockWithTimeOut[ Z ]( info: => String, block: ProcTxn => Z, tx: ProcTxn ) : Z = {
+      val timeOut = new java.util.Timer( true )
+      timeOut.schedule( new TimerTask {
+         def run {
+            informDir( "Timeout for " + info, force = true )
+         }
+      }, 4000L )
+      try {
+         block( tx )
+      } finally {
+         timeOut.cancel()
+      }
+   }
+
+   def atomic[ Z ]( info: => String )( block: ProcTxn => Z ) : Z = {
+      ProcTxn.atomic { tx =>
+         blockWithTimeOut( info, block, tx )
+      }
+   }
+
+   def spawnAtomic[ Z ]( info: => String )( block: ProcTxn => Z ) {
+      ProcTxn.spawnAtomic { tx =>
+         blockWithTimeOut( info, block, tx )
       }
    }
 

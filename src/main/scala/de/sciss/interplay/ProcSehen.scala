@@ -66,11 +66,11 @@ object ProcSehen extends Process {
 
 //   val MIN_THRESH    = 1.0    // powers of mean, thus 1 = mean, 2 = mean.pow( 2 ), etc.
 //   val MAX_THRESH    = 0.5    // powers of mean
-   val TEND_THRESH   = tend( name + "-thresh", Lin, 0.0 -> (0.5, 1.0), 0.9 -> (0.5, 1.0), 2.0 -> (0.5, 3.0) )
+   val TEND_THRESH   = tend( name + "-thresh", Lin, 0.0 -> (0.5, 1.0), 1.4 -> (0.5, 1.0), 2.0 -> (0.5, 3.0) )
 
 //   val MIN_HYST      = 0.8    // hysteresis as factor of up-thresh
 //   val MAX_HYST      = 0.6    // hysteresis as factor of up-thresh
-   val TEND_HYST     = tend( name + "-hyst", Lin, 0.0 -> (0.6, 0.8), (2.0, (0.6, 0.95), 'sin) )
+   val TEND_HYST     = tend( name + "-hyst", Lin, 0.0 -> (0.6, 0.8), 1.5 -> (0.6, 0.8), (2.0, (0.6, 0.95), 'sin) )
 
 //   val MIN_SPEED     = 0.5
 //   val MAX_SPEED     = 1.0
@@ -105,7 +105,7 @@ object ProcSehen extends Process {
                      frame( i ) = (iter.next.toFloat + normAdd( i )) * normMul( i )
                   i += 1 }
                } else {
-                  ProcTxn.spawnAtomic { implicit tx =>
+                  spawnAtomic( name + "ana removal" ) { implicit tx =>
 //                     me.stop
 //                     me.control( "pos" ).v = 1.0
                      ProcessHelper.stopAndDispose( me )
@@ -122,16 +122,16 @@ object ProcSehen extends Process {
          val pspeed  = pAudio(  "speed",  ParamSpec( 1.0/8, 8.0, ExpWarp ), 1.0 )
          graph {
             val me         = Proc.local
-            val org        = ProcTxn.atomic( orgRef()( _ ))( me )
+            val org        = atomic( name + " gen getorg" )( orgRef()( _ ))( me )
             val spec       = audioFileSpec( org.path )
             val speed      = pspeed.ar
             val sig        = VDiskIn.ar( spec.numChannels, bufCue( org.path ).id, speed )
             val frameInteg = Integrator.ar( speed )
             val done       = frameInteg > (pframes.ir + SAMPLE_RATE)
             done.react {
-               ProcTxn.spawnAtomic { implicit tx =>
+               spawnAtomic( name + " gen removal" ) { implicit tx =>
                   orgRef.transform( _ - me )
-                  Process.removeAndDispose( org.diff, 0.1 )
+                  Process.removeAndDispose( name + " gen removal", org.diff, 0.1 )
                }
             }
             sig
@@ -151,11 +151,11 @@ object ProcSehen extends Process {
    private def reentry( implicit tx: ProcTxn ) {
       val dlyTime = TEND_REENTRY.decide
       inform( "reentry after " + dlyTime + "s" )
-      delay( dlyTime )( ProcTxn.atomic( start( _ )))
+      delay( dlyTime )( spawnAtomic( name + " reentry done" )( start( _ )))
    }
 
    private def analysisReady {
-      ProcTxn.spawnAtomic { implicit tx =>  // XXX must spawn, don't know why? otherwise system blows up!
+      spawnAtomic( name + " analysisReady" ) { implicit tx =>  // XXX must spawn, don't know why? otherwise system blows up!
          val pt = if( liveActive ) {
             val rnd = rand( 1.0 )
             val liveProb   = TEND_LIVE_PROB.decide
@@ -222,7 +222,8 @@ object ProcSehen extends Process {
                   mode = "up", threshUp = upThresh.toString, threshDown = downThresh.toString,
                   durUp = "0.1s", durDown = "0.1s", attack = "0.01s", release = "1.0s", spacing = Some( "0s" ))
                FScape.fsc.process( "murke", doc ) {
-                  case true   => ProcTxn.atomic { implicit tx =>
+                  // atomic can lead to timeout here...
+                  case true   => spawnAtomic( name + " fscape done" ) { implicit tx =>
                      stopThinking
                      startPlaying
                      inject( outPath )
@@ -232,29 +233,30 @@ object ProcSehen extends Process {
                }
             case None =>
                informDir( "Wooop. Something went wrong. No truncated live file", force = true )
-               ProcTxn.atomic { implicit tx => stopThinking }
+               atomic( name + " trunc failed" ) { implicit tx => stopThinking }
          }
 
          def measureDone {
             flush
             afCtrl.close
             informDir( "getting trunc file" )
-            ProcTxn.atomic( implicit tx => truncateLiveRecording( numAnaFrames )( truncDone( _ )))
+            atomic( name + " measure done" )( implicit tx => truncateLiveRecording( numAnaFrames )( truncDone( _ )))
          }
 
          // grmpfff
-         ProcTxn.atomic( implicit tx => searchAnalysisM( mat.numFrames,
+         atomic( name + " start searchAnalysisM" )( implicit tx => searchAnalysisM( mat.numFrames,
                           maxResults = 1, // hmmm...
                           measure = processMeasure( _ ))( _ => measureDone ))
       } catch {
          case e =>
             informDir( "Error in process-analysis:", force = true )
             e.printStackTrace()
-//            ProcTxn.atomic( fastReentry( _ ))
+//            atomic( fastReentry( _ ))
       }
    }
 
    private def inject( path: String )( implicit tx: ProcTxn ) {
+      inform( "inject" )
       val spec = audioFileSpec( path )
       val d = factory( "O-all" ).make       // XXX should use different spats
       val g = factory( name ).make

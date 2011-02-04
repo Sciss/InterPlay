@@ -143,14 +143,14 @@ object SoundProcesses {
                   i += 1 }
                   anaClientBuf.setFrame( cnt, frame )
                   if( onset ) anaMarkers.add( cnt )
-                  if( cnt % cntUpd == 0 ) ProcTxn.atomic { implicit tx =>
+                  if( cnt % cntUpd == 0 ) Process.spawnAtomic( "live update pos" ) { implicit tx =>
                      me.control( "pos" ).v = cnt.toDouble / maxLiveAnaFr
                   }
                } else if( cnt == maxLiveAnaFr ) {
 //println( "STOPPENDORFER 1" )
-                  ProcTxn.spawnAtomic { implicit tx =>
+                  Process.spawnAtomic( "live removal" ) { implicit tx =>
 //println( "STOPPENDORFER 2" )
-                     Process.removeAndDispose( pLiveDiff, 5.0, postFun = _ => println( "LIVE DONE" ))
+                     Process.removeAndDispose( "live removal", pLiveDiff, 5.0, postFun = _ => println( "LIVE DONE" ))
 //println( "STOPPENDORFER 3" )
 //                     me.stop
 //                     me.control( "pos" ).v = 1.0
@@ -189,7 +189,7 @@ object SoundProcesses {
             1.react( phase ) { data =>
                val ipos = data.head
 //               println( "ipos = " + ipos )
-               ProcTxn.spawnAtomic { implicit tx => me.control( "pos" ).v = ipos }
+               Process.spawnAtomic( "live-dly pos update" ) { implicit tx => me.control( "pos" ).v = ipos }
             }
             sig
          }
@@ -223,7 +223,7 @@ object SoundProcesses {
             val done       = Done.kr( Line.kr( dur = pdur.ir ))
             val me         = Proc.local
             done.react {
-               ProcTxn.spawnAtomic { implicit tx =>
+               Process.spawnAtomic( "sum-rec done" ) { implicit tx =>
                   me.stop
                   FScape.injectWavelet( recPath )
                }
@@ -836,7 +836,9 @@ object SoundProcesses {
       if( !pLiveDiff.isPlaying )  pLiveDiff.play
       if( !pLiveHlb.isPlaying )  pLiveHlb.play
       if( !pLive.isPlaying )     pLive.play
-      tx.afterCommit { _ => logicalTime0 = System.currentTimeMillis }
+      tx.afterCommit { _ =>
+         logicalTime0 = System.currentTimeMillis
+      }
       Process.init
    }
 

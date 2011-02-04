@@ -251,13 +251,9 @@ object InterPlay {
 
 //      Actor.actor {
       ctrlPanel = new ControlPanel()
-         ProcTxn.atomic { implicit tx =>
-            SoundProcesses.init( s )
-            ctrlPanel.init
-//         }
-//         if( START_META ) ProcTxn.atomic { implicit tx =>
-//            SemiNuages.meta.init
-//         }
+      Process.atomic( "SoundProcesses.init" ) { implicit tx =>
+         SoundProcesses.init( s )
+         ctrlPanel.init
       }
 
       if( USE_MIDI ) Midi.init( f.panel )

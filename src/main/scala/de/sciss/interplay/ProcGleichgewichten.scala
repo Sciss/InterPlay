@@ -102,7 +102,7 @@ object ProcGleichgewichten extends Process {
       val waitTime   = rrand( MIN_WAIT, MAX_WAIT )
       inform( "waitForAnalysis " + waitTime )
       startThinking
-      waitForAnalysis( waitTime )( ProcTxn.atomic( analysisReady( _ )))
+      waitForAnalysis( waitTime )( atomic( name + " waitForAnalysis done" )( analysisReady( _ )))
    }
 
 //   private val tail = Ref( List.empty[ Proc ])
@@ -116,7 +116,7 @@ object ProcGleichgewichten extends Process {
          frameMeasure = minFlat( _ ), integMeasure = algo ) { res =>
 
          inform( "result " + res )
-         ProcTxn.spawnAtomic { implicit tx =>
+         spawnAtomic( name + " searchAnalysis done" ) { implicit tx =>
             stopThinking
             startPlaying
             val speed = TEND_SPEED.decide
@@ -141,13 +141,17 @@ object ProcGleichgewichten extends Process {
             if( res.nonEmpty ) {
                val playTime = TEND_PLAY.decide
                inform( "Playing for " + playTime + "s" )
-               delay( playTime )( ProcTxn.atomic { implicit tx =>
-//try {
-                  tail.foreach( removeAndDispose( _, TEND_FADE.decide ))
-//} catch { case e => println( "WOOOOPA: "); e.printStackTrace(); throw e }
-                  inform( "Stopping" )
-                  stopPlaying
-               })
+               delay( playTime ) {
+                  tail.foreach { proc =>
+                     spawnAtomic( name + " remove one tail" ) { implicit tx =>
+                        removeAndDispose( name + " play done", proc, TEND_FADE.decide )
+                     }
+                     spawnAtomic( name + " stopping" ) { implicit tx =>
+                        inform( "Stopping" )
+                        stopPlaying
+                     }
+                  }
+               }
             }
             reentry
          }
@@ -159,7 +163,7 @@ object ProcGleichgewichten extends Process {
       inform( "Re-entry after " + reentryTime + "s" )
 //      tail.swap( Nil ).foreach( removeAndDispose( _, TEND_FADE.decide ))
 //      stopPlaying
-      delay( reentryTime )( ProcTxn.atomic( start( _ )))
+      delay( reentryTime )( spawnAtomic( name + " reentry done" )( start( _ )))
    }
 
    private def minFlat( buf: Array[ Float ]) : Float = {

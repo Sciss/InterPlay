@@ -34,6 +34,7 @@ import ugen._
 import DSL._
 import InterPlay._
 import Util._
+import Konvulsiv._
 
 /**
  * Inserts a transformation which is a time-varying delay, creating
@@ -45,20 +46,25 @@ object ProcOrientieren extends Process {
    val name    = "p-orient"
    val verbose = true
 
+   val MIN_WAIT   = 30.0
+   val MAX_WAIT   = 60.0
+
    val MIN_DLY    = 1.0
    val MAX_DLY    = 8.0
    val MIN_GLISS  = 6.0
    val MAX_GLISS  = 30.0
-   val MIN_WAIT   = 30.0
-   val MAX_WAIT   = 60.0
    val MIN_REENTRY= 45.0
    val MAX_REENTRY= 90.0
    val ALL_PROB   = 0.333
 
+   private val KONVUL_NUM = konvul( name + "-num", (1.2, 1.8), (2, 4) ) { (t, k) =>
+      Some( (t + 0.3, t + 0.5) -> (2, 4) )
+   }
+
    def init(  implicit tx: ProcTxn ) {
       filter( name ) {
 //         val pdur    = pScalar( "dur", ParamSpec( MIN_REC, MAX_REC ), MIN_REC )
-         val ppos = pScalar( "pos", ParamSpec( 0, 1 ), 0 )
+//         val ppos = pScalar( "pos", ParamSpec( 0, 1 ), 0 )
          graph { in =>
             val (sig, durs) = in.outputs.map( chan => {
                val bufFrames  = (rrand( MIN_DLY, MAX_DLY ) * SAMPLE_RATE).toInt
@@ -76,7 +82,7 @@ object ProcOrientieren extends Process {
             val maxDur = durs.foldLeft[ GE ]( 0 )( _ max _ )
             val me = Proc.local
             Done.kr( Line.kr( 0, 0, maxDur )).react {
-               ProcTxn.spawnAtomic { implicit tx =>
+               spawnAtomic( name + " filter removal" ) { implicit tx =>
                   ProcessHelper.stopAndDispose( me )
                   stopPlaying
                   reentry()
@@ -87,24 +93,36 @@ object ProcOrientieren extends Process {
       }
 
       val t = exprand( MIN_WAIT, MAX_WAIT )
-      ProcTxn.atomic { implicit tx =>
+//      atomic( name + " start" ) { implicit tx =>
          inform( "Waiting for " + t + "s" )
          start( t )
-      }
+//      }
    }
 
    private def start( dlyTime: Double )( implicit tx: ProcTxn ) {
       startThinking
       delay( dlyTime ) {
-         ProcTxn.atomic { implicit tx =>
+         // XXX not clear why, but atomic instead of spawnAtomic here
+         // creates timeouts
+         spawnAtomic( name + " start delay done" ) { implicit tx =>
             inform( "Playing" )
             stopThinking
-            val pt = if( coin( ALL_PROB )) ReplaceAll else ReplaceInternal
-            if( canReplaceTail( pt )) {
-               val filtFact = factory( name )
-               val p = filtFact.make
-               replaceTail( p, point = pt )
+            def funkyShit( implicit tx: ProcTxn ) : Boolean = {
+               val pt = if( coin( ALL_PROB )) ReplaceAll else ReplaceInternal
+               val can = canReplaceTail( pt )
+               if( can ) {
+                  val filtFact = factory( name )
+                  val p = filtFact.make
+                  replaceTail( p, point = pt )
+               }
+               can
+            }
+
+            if( funkyShit ) {
                startPlaying
+               for( n <- 1 until KONVUL_NUM.decideOrElse( 1 )) {
+                  spawnAtomic( name + " konvulsiv " + n )( funkyShit( _ ))
+               }
             } else {
                reentry( 0.3333 )
             }

@@ -60,11 +60,11 @@ object ProcHoeren extends Process {
 //   val REENTRY_DUR   = 5.0
 
    val MAX_GENDELAY  = 3.0
-   private val TEND_GENDELAY  = tend( "gendelay", Lin, 0.0 -> (0.0, MAX_GENDELAY), 1.0 -> (0.0, MAX_GENDELAY), 2.0 -> (0.0, MAX_GENDELAY * 0.1) )
-   private val TEND_THRESH    = tend( "thresh", Lin, 0.0 -> (12.0, 12.0), 1.0 -> (12.0, 12.0), 2.0 -> (9.0, 18.0) )
-   private val TEND_SPEED     = tend( "speed", Exp, 0.0 -> (1.0, 1.0), 1.0 -> (1.0, 1.0), (2.0, (0.25, 1.0), 'sin) )
-   private val TEND_STICKY    = tend( "sticky", Lin, 0.0 -> (10.0, 10.0), 1.0 -> (10.0, 10.0), 2.0 -> (7.0, 20.0) )
-   private val TEND_REENTRY   = tend( "reentry", Lin, 0.0 -> (10.0, 10.0), 1.0 -> (10.0, 10.0), 2.0 -> (7.0, 10.0) )
+   private val TEND_GENDELAY  = tend( name + "gendelay", Lin, 0.0 -> (0.0, MAX_GENDELAY), 1.0 -> (0.0, MAX_GENDELAY), 2.0 -> (0.0, MAX_GENDELAY * 0.1) )
+   private val TEND_THRESH    = tend( name + "thresh", Lin, 0.0 -> (12.0, 12.0), 1.0 -> (12.0, 12.0), 2.0 -> (9.0, 18.0) )
+   private val TEND_SPEED     = tend( name + "speed", Exp, 0.0 -> (1.0, 1.0), 1.0 -> (1.0, 1.0), (2.0, (0.25, 1.0), 'sin) )
+   private val TEND_STICKY    = tend( name + "sticky", Lin, 0.0 -> (10.0, 10.0), 1.0 -> (10.0, 10.0), 2.0 -> (7.0, 20.0) )
+   private val TEND_REENTRY   = tend( name + "reentry", Lin, 0.0 -> (10.0, 10.0), 1.0 -> (10.0, 10.0), 2.0 -> (7.0, 10.0) )
 
    private val anaRef   = Ref( Map.empty[ Proc, IntMap[ Org ]])   // ana-proc to chan->org
    private val genRef   = Ref( Map.empty[ Proc, Org ])   // gen-proc to org
@@ -91,12 +91,12 @@ object ProcHoeren extends Process {
 
                val trig = TDelay.kr( lagged < threshDown, pdly.kr )
 
-               trig.react { ProcTxn.spawnAtomic { implicit tx =>
+               trig.react { spawnAtomic( name + " ana dang" + ch ) { implicit tx =>
                   dang( me, ch )
                }}
             }
             Done.kr( Line.kr( 0, 0, pdur.ir )).react {
-               ProcTxn.spawnAtomic { implicit tx =>
+               spawnAtomic( name + " ana removal" ) { implicit tx =>
                   ProcessHelper.stopAndDispose( me )
                   anaRef.transform( _ - me )
                   reentry
@@ -135,7 +135,7 @@ object ProcHoeren extends Process {
             val env        = EnvGen.ar( new Env( 0, List( EnvSeg( dly, 0 ), EnvSeg( atk, 1, sqrShape ), EnvSeg( sus, 1 ), EnvSeg( rls, 0, sqrShape ))))
             val me         = Proc.local
             Done.kr( env ).react {
-               ProcTxn.spawnAtomic { implicit tx =>
+               spawnAtomic( name + " gen done" ) { implicit tx =>
                   genRef().get( me ) match {
                      case Some( org ) =>
                         genRef.transform( _ - me )
@@ -149,7 +149,7 @@ object ProcHoeren extends Process {
                               }
                            }).getOrElse( anaMap )
                         }
-                        Process.removeAndDispose( org.diff )
+                        Process.removeAndDispose( name + " gen all done", org.diff )
 
                      case None => inform( "Wooop. no org for gen-proc", force = true )
                   }
@@ -163,8 +163,8 @@ object ProcHoeren extends Process {
          }
       }
 
-      delay( liveDur * 60 )( ProcTxn.atomic( start( _ )))
-//delay( 20 )( ProcTxn.atomic( start( _ )))
+      delay( liveDur * 60 )( spawnAtomic( name + " delay done" )( start( _ )))
+//delay( 20 )( atomic( start( _ )))
    }
 
    private def start( implicit tx: ProcTxn ) {
@@ -176,7 +176,7 @@ object ProcHoeren extends Process {
    }
 
    private def reentry( implicit tx: ProcTxn ) {
-      delay( TEND_REENTRY.decide )( ProcTxn.atomic( start( _ )))
+      delay( TEND_REENTRY.decide )( spawnAtomic( name + " reentry done" )( start( _ )))
    }
 
    private def dang( ana: Proc, ch: Int )( implicit tx: ProcTxn ) {

@@ -102,11 +102,11 @@ class ControlPanel() extends JPanel {
       def space( px: Int = 4 ) { panel.add( Box.createHorizontalStrut( px ))}
 
       panel.add( tinyButton( "\u25B6" ) {
-         ProcTxn.atomic { implicit tx => SoundProcesses.startLive }
+         Process.spawnAtomic( "startLive button" ) { implicit tx => SoundProcesses.startLive }
       })
       panel.add( ggClock )
       space()
-      panel.add( tinyToggle( "Rec" )( b => ProcTxn.atomic { implicit tx => SoundProcesses.mitschnitt( b )}))
+      panel.add( tinyToggle( "Rec" )( b => Process.spawnAtomic( "Rec button" ) { implicit tx => SoundProcesses.mitschnitt( b )}))
       space( 16 )
       panel.add( tinyToggle( "HP" )( SoundProcesses.headphoneMix( _ )))
 //      List( ("StringBleach", "string"), ("GlissBleach", "gliss") ) foreach { tup =>
@@ -114,7 +114,7 @@ class ControlPanel() extends JPanel {
 //         space()
 //         panel.add( tinyButton( tempName.capitalize ) {
 //            (Similarity.templates.get( tempName ), playPath) match {
-//               case (Some( temp ), Some( inPath )) => ProcTxn.spawnAtomic( ProcTasten.perform( temp, inPath )( _ ))
+//               case (Some( temp ), Some( inPath )) => spawnAtomic( ProcTasten.perform( temp, inPath )( _ ))
 //               case _ =>
 //            }
 //         })
