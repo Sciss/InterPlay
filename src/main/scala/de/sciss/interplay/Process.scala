@@ -42,9 +42,9 @@ import DSL._
 
 object Process {
    val verbose = true
-//   val all = List( ProcSehen, ProcHoeren, ProcRiechen, ProcSchmecken, ProcTasten, ProcOrientieren, ProcGleichgewichten )
+   val all = List( ProcSehen, ProcHoeren, ProcRiechen, ProcSchmecken, ProcTasten, ProcOrientieren, ProcGleichgewichten )
 //   val all = List( ProcRiechen )
-   val all = List( ProcHoeren )
+//   val all = List( ProcHoeren )
 
    private val actor = new Actor { def act = loop { react {
       case d: Do => try {

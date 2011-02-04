@@ -56,11 +56,15 @@ object ProcHoeren extends Process {
    val MIN_DUR       = 1.0
    val MAX_DUR       = 60.0
 
-   val STICKY_DUR    = 10.0
-   val REENTRY_DUR   = 5.0
+//   val STICKY_DUR    = 10.0
+//   val REENTRY_DUR   = 5.0
 
    val MAX_GENDELAY  = 3.0
-//   private val TEND_GENDELAY  = tend( "gendelay" )
+   private val TEND_GENDELAY  = tend( "gendelay", Lin, 0.0 -> (0.0, MAX_GENDELAY), 1.0 -> (0.0, MAX_GENDELAY), 2.0 -> (0.0, MAX_GENDELAY * 0.1) )
+   private val TEND_THRESH    = tend( "thresh", Lin, 0.0 -> (12.0, 12.0), 1.0 -> (12.0, 12.0), 2.0 -> (9.0, 18.0) )
+   private val TEND_SPEED     = tend( "speed", Exp, 0.0 -> (1.0, 1.0), 1.0 -> (1.0, 1.0), (2.0, (0.25, 1.0), 'sin) )
+   private val TEND_STICKY    = tend( "sticky", Lin, 0.0 -> (10.0, 10.0), 1.0 -> (10.0, 10.0), 2.0 -> (7.0, 20.0) )
+   private val TEND_REENTRY   = tend( "reentry", Lin, 0.0 -> (10.0, 10.0), 1.0 -> (10.0, 10.0), 2.0 -> (7.0, 10.0) )
 
    private val anaRef   = Ref( Map.empty[ Proc, IntMap[ Org ]])   // ana-proc to chan->org
    private val genRef   = Ref( Map.empty[ Proc, Org ])   // gen-proc to org
@@ -72,6 +76,7 @@ object ProcHoeren extends Process {
 //         val ptup    = pControl( "up", ParamSpec( 0, 16 ), 6 )
          val ptdown  = pControl( "thresh", ParamSpec( 0, 16 ), 6 )
          val pdly    = pControl( "delay", ParamSpec( 1, 16, ExpWarp ), 3 )
+         val pdur    = pScalar( "dur", ParamSpec( 5, 30, ExpWarp ), 5 )
          graph { in =>
 //            val threshUp   = ptup.kr
             val threshDown = ptdown.kr
@@ -90,7 +95,7 @@ object ProcHoeren extends Process {
                   dang( me, ch )
                }}
             }
-            Done.kr( Line.kr( 0, 0, STICKY_DUR )).react {
+            Done.kr( Line.kr( 0, 0, pdur.ir )).react {
                ProcTxn.spawnAtomic { implicit tx =>
                   ProcessHelper.stopAndDispose( me )
                   anaRef.transform( _ - me )
@@ -158,19 +163,20 @@ object ProcHoeren extends Process {
          }
       }
 
-//      delay( liveDur * 60 )( ProcTxn.atomic( start ))
-delay( 20 )( ProcTxn.atomic( start( _ )))
+      delay( liveDur * 60 )( ProcTxn.atomic( start( _ )))
+//delay( 20 )( ProcTxn.atomic( start( _ )))
    }
 
    private def start( implicit tx: ProcTxn ) {
       if( canReplaceTail( ReplaceAll )) {
          val p = factory( anaName ).make
+         p.control( "dur" ).v = TEND_STICKY.decide
          replaceTail( p, point = ReplaceAll )
       }
    }
 
    private def reentry( implicit tx: ProcTxn ) {
-      delay( REENTRY_DUR )( ProcTxn.atomic( start( _ )))
+      delay( TEND_REENTRY.decide )( ProcTxn.atomic( start( _ )))
    }
 
    private def dang( ana: Proc, ch: Int )( implicit tx: ProcTxn ) {
@@ -187,7 +193,7 @@ delay( 20 )( ProcTxn.atomic( start( _ )))
 //      val pos  = framesToPos( m0 )
       val dur  = math.min( MAX_DUR, math.max( MIN_DUR, frameToSecs( m2 ) - frameToSecs( m )))
       val secs0= frameToSecs( m0 )
-      val dly  = math.min( secs0, Util.rand( MAX_GENDELAY ))
+      val dly  = math.min( secs0, Util.rand( TEND_GENDELAY.decide ))
       val pos  = secsToPos( secs0 - dly )
 
       val p    = factory( name ).make
@@ -195,7 +201,7 @@ delay( 20 )( ProcTxn.atomic( start( _ )))
       p.control( "dly" ).v = dly
       p.control( "pos" ).v = pos
       p.control( "dur" ).v = dur
-      // XXX speed? tend!
+      p.control( "speed" ).v = TEND_SPEED.decide
       d.control( "idx" ).v = ch
       p ~> d
       addTail( d )
