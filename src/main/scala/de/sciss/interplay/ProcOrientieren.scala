@@ -108,26 +108,29 @@ object ProcOrientieren extends Process {
          // XXX not clear why, but atomic instead of spawnAtomic here
          // creates timeouts
          spawnAtomic( name + " start delay done" ) { implicit tx =>
-            inform( "Playing" )
             stopThinking
-            def funkyShit( implicit tx: ProcTxn ) : Boolean = {
-               val pt = if( coin( ALL_PROB )) ReplaceAll else ReplaceInternal
-               val can = canReplaceTail( pt )
-               if( can ) {
-                  val filtFact = factory( name )
-                  val p = filtFact.make
-                  replaceTail( p, point = pt )
-               }
-               can
-            }
+            if( keepGoing ) {
+               inform( "Playing" )
 
-            if( funkyShit ) {
-               startPlaying
-               for( n <- 1 until KONVUL_NUM.decideOrElse( 1 )) {
-                  spawnAtomic( name + " konvulsiv " + n )( funkyShit( _ ))
+               def funkyShit( implicit tx: ProcTxn ) : Boolean = {
+                  val pt = if( coin( ALL_PROB )) ReplaceAll else ReplaceInternal
+                  val can = canReplaceTail( pt )
+                  if( can ) {
+                     val filtFact = factory( name )
+                     val p = filtFact.make
+                     replaceTail( p, point = pt )
+                  }
+                  can
                }
-            } else {
-               reentry( TEND_RETRY.decide )
+
+               if( funkyShit ) {
+                  startPlaying
+                  for( n <- 1 until KONVUL_NUM.decideOrElse( 1 )) {
+                     spawnAtomic( name + " konvulsiv " + n )( funkyShit( _ ))
+                  }
+               } else {
+                  reentry( TEND_RETRY.decide )
+               }
             }
          }
       }

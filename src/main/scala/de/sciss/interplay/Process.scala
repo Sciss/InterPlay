@@ -66,6 +66,10 @@ object Process {
       all.foreach( _.init )
    }
 
+   def stopAll( implicit tx: ProcTxn ) {
+      all.foreach( _.stop )
+   }
+
    def secsToFrames( secs: Double ) = (secs * (SAMPLE_RATE / AnalysisBuffer.anaWinStep)).toInt
    def framesToPos( idx: Int )      = idx.toDouble / (anaClientBuf.numFrames - 1)
    def frameToSecs( idx: Int )      = idx.toDouble * AnalysisBuffer.anaWinStep / SAMPLE_RATE
@@ -551,6 +555,12 @@ trait Process extends TxnModel[ Process.Update ] {
    def verbose : Boolean
 
    def init( implicit tx: ProcTxn ) : Unit
+   final def stop( implicit tx: ProcTxn ) {
+      val st = state
+      if( st.valid ) state = st.copy( valid = false )
+   }
+
+   protected def keepGoing( implicit tx: ProcTxn ) = state.valid
 
    protected def inform( what: => String, force: Boolean = false )( implicit tx: ProcTxn ) = if( verbose || force ) {
       doInform( name + " : " + what )
@@ -559,13 +569,6 @@ trait Process extends TxnModel[ Process.Update ] {
    protected def informDir( what: => String, force: Boolean = false )  = if( verbose || force ) {
       println( timeString + " " + name + " : " + what )
    }
-
-//   def start( implicit tx: ProcTxn ) {
-//      val st = state
-//      if( !st.active ) {
-//         state = st.copy( active = true )
-//      }
-//   }
 
    protected def startThinking( implicit tx: ProcTxn ) {
       val st = state
@@ -599,10 +602,4 @@ trait Process extends TxnModel[ Process.Update ] {
 
    protected def emptyUpdate  = Update( proc, State( false ))
    protected def fullUpdate( implicit tx: ProcTxn ) = Update( proc, state )
-
-   def stop( implicit tx: ProcTxn ) {
-
-   }
-
-//   def isActive( implicit tx: ProcTxn ) : Boolean = activeRef()
 }

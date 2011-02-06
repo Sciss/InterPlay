@@ -197,10 +197,7 @@ object ProcRiechen extends Process {
    }
 
    private def perform( implicit tx: ProcTxn ) {
-//      if( orgRef().isDefined ) {
-//         inform( "can't perform - old performance ongoing!", force = true )
-//         return // reentry??
-//      }
+      if( !keepGoing ) return
       inform( "perform" )
       startPlaying
       val pt = if( liveActive ) {

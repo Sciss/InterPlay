@@ -42,6 +42,11 @@ object Midi {
    var DUMP_IN    = false
    var DUMP_OUT   = false
 
+   val MIC_CHAN   = 7
+   val MAST_CHAN  = 5 // 6 = motor broken
+   val PLAY_BUT   = 89
+   val STOP_BUT   = 92
+
    private def inform( what: String ) {
       println( "Midi : " + what )
    }
@@ -71,7 +76,7 @@ object Midi {
                            val v    = sm.getData2()
                            if( DUMP_IN ) inform( "cc in,  ch " + ch + ", num " + num + ", v " + v )
                            if( num == 7 ) {           // faders
-                              if( ch == 0 ) {         // mic
+                              if( ch == /* 0 */ MIC_CHAN ) {         // mic
                                  Process.spawnAtomic( "midi live amp" ) { implicit tx =>
                                     if( pLiveDiff.state.valid ) {
                                        val ctrl = pLiveDiff.control( "amp" )
@@ -81,17 +86,22 @@ object Midi {
                                        }
                                     }
                                  }
-                              } else if( ch == 1 ) {  // main
+                              } else if( ch == /* 1 */ MAST_CHAN ) {  // main
                                  Process.spawnAtomic( "midi master amp" ) { implicit tx =>
                                     val vol = NuagesPanel.masterAmpSpec._1.map( v.toDouble / 127 )
 //inform( "setVolume " + vol )
                                     p.setMasterVolume( vol )
                                  }
                               }
-                           } else if( num == 89 ) {   // play
+                           } else if( num == PLAY_BUT ) {   // play
                               if( v > 0 ) {
                                  if( verbose ) println( "START LIVE" )
                                  Process.spawnAtomic( "midi startLive" )( startLive( _ ))
+                              }
+                           } else if( num == STOP_BUT ) {   // stop
+                              if( v > 0 ) {
+                                 if( verbose ) println( "STOP PROCESSES" )
+                                 Process.spawnAtomic( "midi stopProcesses" )( stopProcesses( _ ))
                               }
                            }
 
@@ -114,9 +124,10 @@ object Midi {
    }
 
    def initFaders( p: NuagesPanel ) {
-      ccOut( 0, 7, (LIVE_AMP_SPEC._1.unmap( LIVE_AMP_SPEC._2 ) * 127 + 0.5).toInt )
-      ccOut( 1, 7, (NuagesPanel.masterAmpSpec._1.unmap( NuagesPanel.masterAmpSpec._2 ) * 127 + 0.5).toInt )
-      ccOut( 0, 89, 0 )
+      ccOut( MIC_CHAN, 7, (LIVE_AMP_SPEC._1.unmap( LIVE_AMP_SPEC._2 ) * 127 + 0.5).toInt )
+      ccOut( MAST_CHAN, 7, (NuagesPanel.masterAmpSpec._1.unmap( InterPlay.INITIAL_MASTER_VOLUME ) * 127 + 0.5).toInt )
+      ccOut( 0, PLAY_BUT, 0 )
+      ccOut( 0, STOP_BUT, 0 )
    }
 
    def ccOut( ch: Int, num: Int, v: Int ) {

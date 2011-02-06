@@ -48,7 +48,7 @@ object SoundProcesses {
    val totalDur   = 7.0 // 6.0    // minutes
 
 //   val LIVE_AMP_SPEC = ParamSpec( 0.1, 10, ExpWarp ) -> 0.5
-   val LIVE_AMP_SPEC = ParamSpec( 0.0, 1, LinWarp ) -> 0.3333
+   val LIVE_AMP_SPEC = ParamSpec( 0.0, 0.6, LinWarp ) -> 0.25 // 3 // 3333
 
    import AnalysisBuffer.{anaChans, anaWinStep}
    val maxLiveAnaFr   = {
@@ -832,7 +832,8 @@ object SoundProcesses {
    def startLive( implicit tx: ProcTxn ) {
       val wasStarted = liveStarted.swap( true )
       if( wasStarted ) return
-      if( !collLive.isPlaying )  collLive.play
+//      if( !collLive.isPlaying )  collLive.play
+      if( !collLive.isPlaying ) xfade( 3.0 ) { collLive.play }
       if( !pLiveDiff.isPlaying )  pLiveDiff.play
       if( !pLiveHlb.isPlaying )  pLiveHlb.play
       if( !pLive.isPlaying )     pLive.play
@@ -840,6 +841,10 @@ object SoundProcesses {
          logicalTime0 = System.currentTimeMillis
       }
       Process.init
+   }
+
+   def stopProcesses( implicit tx: ProcTxn ) {
+      if( liveStarted() ) Process.stopAll
    }
 
    def logicalTime() : Double = {

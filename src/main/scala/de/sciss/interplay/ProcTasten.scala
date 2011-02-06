@@ -174,14 +174,15 @@ object ProcTasten extends Process {
                   case bleach :: tail =>
                      // cannot nest atomics it seems! hence spawn
                      spawnAtomic( name + " fscape done" ) { implicit tx =>
-                        if( first ) {
-                           stopThinking
-                           startPlaying
-                           reentry
+                        if( keepGoing ) {
+                           if( first ) {
+                              stopThinking
+                              startPlaying
+                              reentry
+                           }
+                           inject( bleach.out )
+                           delay( exprand( 0.2, 1.5 ))( gugu( tail, false ))
                         }
-//                        FScape.inject( new File( bleach.out ), "O-one" )
-                        inject( bleach.out )
-                        delay( exprand( 0.2, 1.5 ))( gugu( tail, false ))
                      }
                   case _ =>
                }

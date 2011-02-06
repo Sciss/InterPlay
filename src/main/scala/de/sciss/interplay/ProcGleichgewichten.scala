@@ -131,46 +131,51 @@ object ProcGleichgewichten extends Process {
                resS = resS - usedIter.next
             }
             resS = resS.take( MASTER_NUMCHANNELS )
-            inform( "playing " + resS )
-            usedRef.transform( _ ++ resS )
-            stopThinking
-            startPlaying
-            val speed = TEND_SPEED.decide
-            val tail: List[ Proc ] = resS.zipWithIndex.map( tup => {
-               val (smpIdx, idx) = tup
-               val genFact = factory( name )
-               val p = genFact.make
-               p.control( "dur" ).v = exprand( steadyLo, steady )
-               // DDD p.control( "speed" ).v = fluctuate( phase )
-   //               println( "juuu. measure = " + smp.measure )
-               // measure is typically between 0.0 (maximally flat) and 0.5
-               p.control( "pos" ).v = framesToPos( smpIdx )
-               p.control( "comp" ).v = TEND_COMP.decide
-               p.control( "speed" ).v = speed
-               val diffFact = factory( "O-one" )
-               val d = diffFact.make
-               d.control( "idx" ).v = idx
-               p ~> d
-               addTail( d, TEND_FADE.decide )
-               d
-            })( breakOut )
 
-            if( resS.nonEmpty ) {
-               val playTime = TEND_PLAY.decide
-               inform( "Playing for " + playTime + "s" )
-               delay( playTime ) {
-                  tail.foreach { proc =>
-                     spawnAtomic( name + " remove one tail" ) { implicit tx =>
-                        removeAndDispose( name + " play done", proc, TEND_FADE.decide )
-                     }
-                     spawnAtomic( name + " stopping" ) { implicit tx =>
-                        inform( "Stopping" )
-                        stopPlaying
+            stopThinking
+
+            if( keepGoing ) {
+               inform( "playing " + resS )
+               usedRef.transform( _ ++ resS )
+               startPlaying
+
+               val speed = TEND_SPEED.decide
+               val tail: List[ Proc ] = resS.zipWithIndex.map( tup => {
+                  val (smpIdx, idx) = tup
+                  val genFact = factory( name )
+                  val p = genFact.make
+                  p.control( "dur" ).v = exprand( steadyLo, steady )
+                  // DDD p.control( "speed" ).v = fluctuate( phase )
+      //               println( "juuu. measure = " + smp.measure )
+                  // measure is typically between 0.0 (maximally flat) and 0.5
+                  p.control( "pos" ).v = framesToPos( smpIdx )
+                  p.control( "comp" ).v = TEND_COMP.decide
+                  p.control( "speed" ).v = speed
+                  val diffFact = factory( "O-one" )
+                  val d = diffFact.make
+                  d.control( "idx" ).v = idx
+                  p ~> d
+                  addTail( d, TEND_FADE.decide )
+                  d
+               })( breakOut )
+
+               if( resS.nonEmpty ) {
+                  val playTime = TEND_PLAY.decide
+                  inform( "Playing for " + playTime + "s" )
+                  delay( playTime ) {
+                     tail.foreach { proc =>
+                        spawnAtomic( name + " remove one tail" ) { implicit tx =>
+                           removeAndDispose( name + " play done", proc, TEND_FADE.decide )
+                        }
+                        spawnAtomic( name + " stopping" ) { implicit tx =>
+                           inform( "Stopping" )
+                           stopPlaying
+                        }
                      }
                   }
                }
+               reentry
             }
-            reentry
          }
       }
    }

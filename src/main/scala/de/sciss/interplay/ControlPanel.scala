@@ -104,6 +104,9 @@ class ControlPanel() extends JPanel {
       panel.add( tinyButton( "\u25B6" ) {
          Process.spawnAtomic( "startLive button" ) { implicit tx => SoundProcesses.startLive }
       })
+      panel.add( tinyButton( "\u25FC" ) {
+         Process.spawnAtomic( "stopProcesses button" ) { implicit tx => SoundProcesses.stopProcesses }
+      })
       panel.add( ggClock )
       space()
       panel.add( tinyToggle( "Rec" )( b => Process.spawnAtomic( "Rec button" ) { implicit tx => SoundProcesses.mitschnitt( b )}))

@@ -92,8 +92,10 @@ object ProcSchmecken extends Process {
          Done.kr( phase ).react {
             spawnAtomic( name + " gen removal" ) { implicit tx =>
                ProcessHelper.stopAndDispose( me )
-               inform( "injectWavelet" )
-               FScape.injectWavelet( recPath, TEND_AMP.decide )
+               if( keepGoing ) {
+                  inform( "injectWavelet" )
+                  FScape.injectWavelet( recPath, TEND_AMP.decide )
+               }
             }
          }
       }

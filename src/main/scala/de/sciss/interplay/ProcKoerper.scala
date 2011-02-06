@@ -131,6 +131,7 @@ object ProcKoerper extends Process {
 
    private def fscapeDone( success: Boolean, outPath: String )( implicit tx: ProcTxn ) {
       if( success ) {
+         if( !keepGoing ) return
          inform( "inject" )
          FScape.inject( new File( outPath ))
       } else {

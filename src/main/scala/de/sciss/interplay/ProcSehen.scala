@@ -78,7 +78,9 @@ object ProcSehen extends Process {
 
 //   val MIN_REENTRY   = 60.0
 //   val MAX_REENTRY   = 90.0
-   val TEND_REENTRY  = tend( name + "-reentry", Lin, 0.0 -> (60.0, 90.0), 1.0 -> (60.0, 90.0), 1.6 -> (20.0, 74.0), 1.61 -> (999.0, 999.0) )
+   val TEND_REENTRY  = tend( name + "-reentry", Lin, 0.0 -> (60.0, 90.0), 1.0 -> (60.0, 90.0), 1.6 -> (20.0, 74.0), 1.61 -> (9999.0, 9999.0) )
+
+   val MAX_TIME        = 1.7
 
    private val orgRef = Ref( Map.empty[ Proc, Org ])
    private case class Org( gen: Proc, diff: Proc, path: String )
@@ -168,27 +170,29 @@ object ProcSehen extends Process {
 
    private def analysisReady {
       spawnAtomic( name + " analysisReady" ) { implicit tx =>  // XXX must spawn, don't know why? otherwise system blows up!
-         val ok = if( liveActive ) {
-            val rnd = rand( 1.0 )
-            val liveProb   = TEND_LIVE_PROB.decide
-            val intProb    = TEND_INT_PROB.decide
-            val pt         = if( rnd <= liveProb ) ReplaceLive else if( rnd - liveProb <= intProb ) ReplaceInternal else ReplaceAll
-            val res        = canReplaceTail( pt )
-            if( res ) {
-               val p = factory( anaNameF ).make
-               replaceTail( p, point = pt )
+         if( keepGoing && (SoundProcesses.logicalTime < MAX_TIME) ) {
+            val ok = if( liveActive ) {
+               val rnd = rand( 1.0 )
+               val liveProb   = TEND_LIVE_PROB.decide
+               val intProb    = TEND_INT_PROB.decide
+               val pt         = if( rnd <= liveProb ) ReplaceLive else if( rnd - liveProb <= intProb ) ReplaceInternal else ReplaceAll
+               val res        = canReplaceTail( pt )
+               if( res ) {
+                  val p = factory( anaNameF ).make
+                  replaceTail( p, point = pt )
+               }
+               res
+            } else {
+               val p = factory( anaNameD ).make
+               collAll ~> p
+               p.play
+               true
             }
-            res
-         } else {
-            val p = factory( anaNameD ).make
-            collAll ~> p
-            p.play
-            true
-         }
-         inform( "analysisReady " + ok )
-         if( ok ) startThinking
+            inform( "analysisReady " + ok )
+            if( ok ) startThinking
 
-         reentry( if( ok ) 1.0 else 0.1 )
+            reentry( if( ok ) 1.0 else 0.1 )
+         }
       }
    }
 
