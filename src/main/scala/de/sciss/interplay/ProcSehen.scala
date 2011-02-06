@@ -78,41 +78,53 @@ object ProcSehen extends Process {
 
 //   val MIN_REENTRY   = 60.0
 //   val MAX_REENTRY   = 90.0
-   val TEND_REENTRY  = tend( name + "-reentry", Lin, 0.0 -> (60.0, 90.0), 1.0 -> (60.0, 90.0), 2.0 -> (10.0, 70.0) )
+   val TEND_REENTRY  = tend( name + "-reentry", Lin, 0.0 -> (60.0, 90.0), 1.0 -> (60.0, 90.0), 1.8 -> (20.0, 74.0), 1.81 -> (999.0, 999.0) )
 
    private val orgRef = Ref( Map.empty[ Proc, Org ])
    private case class Org( gen: Proc, diff: Proc, path: String )
 
-   private lazy val anaName = name + "-ana"
+   private lazy val anaNameD = name + "-anad"
+   private lazy val anaNameF = name + "-anaf"
 
    def init(  implicit tx: ProcTxn ) {
-      filter( anaName ) {
-         graph { in =>
-            import AnalysisBuffer._
-            val chain      = FFT( bufEmpty( anaFFTSize ).id, Mix( in ), anaFFTOver.reciprocal )
-            val coeffs     = MFCC.kr( chain, numMelCoeffs )
-            val fftTrig    = Impulse.kr( SampleRate.ir / anaWinStep )
-            val fftCnt     = PulseCount.kr( fftTrig )
-            val me         = Proc.local
-            val anaFrames  = (TEND_ANA_DUR.decide * SAMPLE_RATE / anaWinStep + 0.5).toInt
-            val anaBuf     = Similarity.Mat( anaFrames, anaChans )
-            fftTrig.react( fftCnt +: coeffs.outputs ) { data =>
-               val iter    = data.iterator
-               val cnt     = iter.next.toInt - 1
-               if( cnt < anaFrames ) {
-                  val frame = anaBuf.arr( cnt )
-                  var i = 0; while( i < numMelCoeffs ) {
-                     frame( i ) = (iter.next.toFloat + normAdd( i )) * normMul( i )
-                  i += 1 }
-               } else {
-                  spawnAtomic( name + "ana removal" ) { implicit tx =>
+      def flonky( in: GE ) {
+         import AnalysisBuffer._
+         val chain      = FFT( bufEmpty( anaFFTSize ).id, Mix( in ), anaFFTOver.reciprocal )
+         val coeffs     = MFCC.kr( chain, numMelCoeffs )
+         val fftTrig    = Impulse.kr( SampleRate.ir / anaWinStep ) & (Mix( coeffs ) > 0)
+         val fftCnt     = PulseCount.kr( fftTrig )
+         val me         = Proc.local
+         val anaFrames  = (TEND_ANA_DUR.decide * SAMPLE_RATE / anaWinStep + 0.5).toInt
+         val anaBuf     = Similarity.Mat( anaFrames, anaChans )
+         fftTrig.react( fftCnt +: coeffs.outputs ) { data =>
+            val iter    = data.iterator
+            val cnt     = iter.next.toInt - 1
+            if( cnt < anaFrames ) {
+               val frame = anaBuf.arr( cnt )
+               var i = 0; while( i < numMelCoeffs ) {
+                  frame( i ) = (iter.next.toFloat + normAdd( i )) * normMul( i )
+               i += 1 }
+            } else {
+               spawnAtomic( name + "ana removal" ) { implicit tx =>
 //                     me.stop
 //                     me.control( "pos" ).v = 1.0
-                     ProcessHelper.stopAndDispose( me )
-                     processAnalysis( anaBuf )
-                  }
+                  ProcessHelper.stopAndDispose( me )
+                  processAnalysis( anaBuf )
                }
             }
+         }
+      }
+
+      diff( anaNameD ) {
+         graph { in =>
+            flonky( in )
+            0.0
+         }
+      }
+
+      filter( anaNameF ) {
+         graph { in =>
+            flonky( in )
             in // thru
          }
       }
@@ -148,31 +160,35 @@ object ProcSehen extends Process {
       waitForAnalysis( waitTime )( analysisReady )
    }
 
-   private def reentry( implicit tx: ProcTxn ) {
-      val dlyTime = TEND_REENTRY.decide
+   private def reentry( factor: Double )( implicit tx: ProcTxn ) {
+      val dlyTime = TEND_REENTRY.decide * factor
       inform( "reentry after " + dlyTime + "s" )
       delay( dlyTime )( spawnAtomic( name + " reentry done" )( start( _ )))
    }
 
    private def analysisReady {
       spawnAtomic( name + " analysisReady" ) { implicit tx =>  // XXX must spawn, don't know why? otherwise system blows up!
-         val pt = if( liveActive ) {
+         val ok = if( liveActive ) {
             val rnd = rand( 1.0 )
             val liveProb   = TEND_LIVE_PROB.decide
             val intProb    = TEND_INT_PROB.decide
-            if( rnd <= liveProb ) ReplaceLive else if( rnd - liveProb <= intProb ) ReplaceInternal else ReplaceAll
-         } else ReplaceInternal
-         val ok = canReplaceTail( pt )
-         inform( "analysisReady " + ok )
-         if( ok ) {
-            startThinking
-            val p = factory( anaName ).make
-            replaceTail( p, point = pt )
-//         } else {
-//            fastReentry
+            val pt         = if( rnd <= liveProb ) ReplaceLive else if( rnd - liveProb <= intProb ) ReplaceInternal else ReplaceAll
+            val res        = canReplaceTail( pt )
+            if( res ) {
+               val p = factory( anaNameF ).make
+               replaceTail( p, point = pt )
+            }
+            res
+         } else {
+            val p = factory( anaNameD ).make
+            collAll ~> p
+            p.play
+            true
          }
+         inform( "analysisReady " + ok )
+         if( ok ) startThinking
 
-         reentry
+         reentry( if( ok ) 1.0 else 0.1 )
       }
    }
 
@@ -221,15 +237,17 @@ object ProcSehen extends Process {
                   inPath, ctrlPath, outPath, FScapeJobs.OutputSpec.aiffInt, FScapeJobs.Gain.normalized,
                   mode = "up", threshUp = upThresh.toString, threshDown = downThresh.toString,
                   durUp = "0.1s", durDown = "0.1s", attack = "0.01s", release = "1.0s", spacing = Some( "0s" ))
-               FScape.fsc.process( "murke", doc ) {
+               FScape.fsc.process( "murke", doc ) { success =>
+                  informDir( "murke done " + success )
                   // atomic can lead to timeout here...
-                  case true   => spawnAtomic( name + " fscape done" ) { implicit tx =>
+                  if( success ) spawnAtomic( name + " fscape done" ) { implicit tx =>
                      stopThinking
                      startPlaying
                      inject( outPath )
-//                     reentry
+                     //                     reentry
+                  } else {
+                     informDir( "FScape failure!", force = true )
                   }
-                  case false => informDir( "FScape failure!", force = true )
                }
             case None =>
                informDir( "Wooop. Something went wrong. No truncated live file", force = true )

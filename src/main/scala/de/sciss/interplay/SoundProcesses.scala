@@ -607,7 +607,7 @@ object SoundProcesses {
             }
          }
 
-         val d = diff( "D-all" + suff ) {
+         diff( "D-all" + suff ) {
             val pamp  = pAudio( "amp", ParamSpec( 0.01, 10, ExpWarp ), 1 )
             val pout  = pAudioOut( "out", None )
 
@@ -620,21 +620,21 @@ object SoundProcesses {
             }
          }
 
-//         diff( "O-one" + suff ) {
-//            val pamp  = pAudio( "amp", ParamSpec( 0.01, 10, ExpWarp ), 1 )
-//            val pidx  = pAudio( "idx", ParamSpec( 0, numCh - 1, LinWarp, 1 ), 0 )
-//            val pout  = pAudioOut( "out", None )
-//
-//            graph { in =>
-//               val sig           = (in * Lag.ar( pamp.ar, 0.1 )).outputs
-//               val inChannels    = sig.size
-//               val outChannels   = numCh
-//               val idx           = Lag.ar( pidx.ar, 0.1 )
-//               val outSig        = IIdxSeq.tabulate( outChannels )( ch =>
-//                  sig( ch % inChannels ) * (1 - idx.absdif( ch ).min( 1 )))
-//               pout.ar( placeChannels( outSig ))
-//            }
-//         }
+         diff( "D-one" + suff ) {
+            val pamp  = pAudio( "amp", ParamSpec( 0.01, 10, ExpWarp ), 1 )
+            val pidx  = pAudio( "idx", ParamSpec( 0, numCh - 1, LinWarp, 1 ), 0 )
+            val pout  = pAudioOut( "out", None )
+
+            graph { in =>
+               val sig           = (in * Lag.ar( pamp.ar, 0.1 )).outputs
+               val inChannels    = sig.size
+               val outChannels   = numCh
+               val idx           = Lag.ar( pidx.ar, 0.1 )
+               val outSig        = IIdxSeq.tabulate( outChannels )( ch =>
+                  sig( ch % inChannels ) * (1 - idx.absdif( ch ).min( 1 )))
+               pout.ar( placeChannels( outSig ))
+            }
+         }
       }
 
       val diffAll = filter( "O-all" ) {

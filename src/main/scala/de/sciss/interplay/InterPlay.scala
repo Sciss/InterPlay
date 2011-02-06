@@ -56,7 +56,7 @@ object InterPlay {
    val INTERNAL_AUDIO      = true
    val NUAGES_ANTIALIAS    = false
    val MASTER_OFFSET       = 2
-   val MASTER_NUMCHANNELS  = 5
+   val MASTER_NUMCHANNELS  = 6 // 5
    val SOLO_OFFSET         = 0
    val SOLO_NUMCHANNELS    = 2
    val SAMPLE_RATE         = 44100.0
@@ -75,7 +75,7 @@ object InterPlay {
 
    val USE_MIDI            = true
 
-   var LIVE_FILE           = None // Some( "live110131_214418.irc" ) // None // Some( "live110125_143645.irc" ) // Some( "live110128_113557.irc" ) // Some( "live110128_121639.irc" )
+   var LIVE_FILE           = Some( "live110131_214418.irc" ) // None // Some( "live110125_143645.irc" ) // Some( "live110128_113557.irc" ) // Some( "live110128_121639.irc" )
    val LIVE_MODE           = if( LIVE_FILE.isDefined ) 1 else 0
 
 //   println( "MIC_AND_PEOPLE = " + MIC_AND_PEOPLE )
