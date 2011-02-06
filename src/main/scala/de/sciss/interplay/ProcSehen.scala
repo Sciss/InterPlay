@@ -78,7 +78,7 @@ object ProcSehen extends Process {
 
 //   val MIN_REENTRY   = 60.0
 //   val MAX_REENTRY   = 90.0
-   val TEND_REENTRY  = tend( name + "-reentry", Lin, 0.0 -> (60.0, 90.0), 1.0 -> (60.0, 90.0), 1.8 -> (20.0, 74.0), 1.81 -> (999.0, 999.0) )
+   val TEND_REENTRY  = tend( name + "-reentry", Lin, 0.0 -> (60.0, 90.0), 1.0 -> (60.0, 90.0), 1.6 -> (20.0, 74.0), 1.61 -> (999.0, 999.0) )
 
    private val orgRef = Ref( Map.empty[ Proc, Org ])
    private case class Org( gen: Proc, diff: Proc, path: String )
@@ -237,7 +237,7 @@ object ProcSehen extends Process {
                   inPath, ctrlPath, outPath, FScapeJobs.OutputSpec.aiffInt, FScapeJobs.Gain.normalized,
                   mode = "up", threshUp = upThresh.toString, threshDown = downThresh.toString,
                   durUp = "0.1s", durDown = "0.1s", attack = "0.01s", release = "1.0s", spacing = Some( "0s" ))
-               FScape.fsc.process( "murke", doc ) { success =>
+               FScape.fsc2.process( "murke", doc ) { success =>
                   informDir( "murke done " + success )
                   // atomic can lead to timeout here...
                   if( success ) spawnAtomic( name + " fscape done" ) { implicit tx =>

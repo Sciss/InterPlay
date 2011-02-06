@@ -71,11 +71,11 @@ object InterPlay {
    val BASE_PATH           = new File( new File( System.getProperty( "user.home" ), "Desktop" ), "InterPlay" )
    lazy val REC_PATH       = new File( BASE_PATH, "rec" )
    lazy val TEMPLATE_PATH  = new File( BASE_PATH, "templates" )
-   lazy val FSC_PATH       = new File( REC_PATH, "fsc" )
+//   lazy val FSC_PATH       = new File( REC_PATH, "fsc" )
 
    val USE_MIDI            = true
 
-   var LIVE_FILE           = Some( "live110131_214418.irc" ) // None // Some( "live110125_143645.irc" ) // Some( "live110128_113557.irc" ) // Some( "live110128_121639.irc" )
+   var LIVE_FILE           = Some( "live110204_210950.irc" ) // Some( "live110131_214418.irc" ) // None // Some( "live110125_143645.irc" ) // Some( "live110128_113557.irc" ) // Some( "live110128_121639.irc" )
    val LIVE_MODE           = if( LIVE_FILE.isDefined ) 1 else 0
 
 //   println( "MIC_AND_PEOPLE = " + MIC_AND_PEOPLE )

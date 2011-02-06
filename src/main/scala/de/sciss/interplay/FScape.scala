@@ -40,28 +40,42 @@ import synth.proc.{Ref, ParamSpec, ProcDemiurg, Proc, ProcTxn, DSL}
 object FScape {
    import FScapeJobs._
 
+   val verbose = false
+
    lazy val fsc = {
       val res = FScapeJobs()
-      res.verbose = false // true
+      res.verbose = verbose
       res
    }
 
-   def injectWavelet( inPath: File )( implicit tx: ProcTxn ) {
-      IPProcess.afterCommit( tx )( actInjectWavelet( inPath ))
+   lazy val fsc2 = {
+      val res = FScapeJobs()
+      res.verbose = verbose
+      res
    }
 
-   private def actInjectWavelet( inPath: File ) {
-      val outPath = File.createTempFile( "fsc", ".aif", FSC_PATH )
+   lazy val fsc3 = {
+      val res = FScapeJobs()
+      res.verbose = verbose
+      res
+   }
+
+   def injectWavelet( inPath: File, amp: Double = 1.0 )( implicit tx: ProcTxn ) {
+      IPProcess.afterCommit( tx )( actInjectWavelet( inPath, amp ))
+   }
+
+   private def actInjectWavelet( inPath: File, amp: Double ) {
+      val outPath = File.createTempFile( "fsc", ".aif" ) // , FSC_PATH
       val doc = Wavelet( inPath.getAbsolutePath, outPath.getAbsolutePath, OutputSpec.aiffInt, Gain.normalized, filter = "daub16", trunc = true )
       fsc.process( "wavelet", doc ) {
-         case true   => IPProcess.spawnAtomic( "injectWavelet fscape done" ) { implicit tx => inject( outPath )}
+         case true   => IPProcess.spawnAtomic( "injectWavelet fscape done" ) { implicit tx => inject( outPath, amp = amp )}
          case false  => println( "Failure!" )
       }
    }
 
    private val cntRef = Ref( 0 )
 
-   def inject( outPath: File, diffName: String = "O-all" )( implicit tx: ProcTxn ) {
+   def inject( outPath: File, diffName: String = "O-all", amp: Double = 1.0 )( implicit tx: ProcTxn ) {
       import DSL._
       import synth._
       import ugen._
@@ -89,6 +103,7 @@ object FScape {
          dch.v = dch.spec.map( Util.rand( 1.0 ))
       }
       g.control( "dur" ).v = spec.numFrames / spec.sampleRate
+      if( amp != 1.0 ) d.control( "amp" ).v = amp
       g ~> d
 //      ProcessHelper.playNewDiff( 0.1, d )
       IPProcess.addTail( d, 0.1 )

@@ -63,39 +63,56 @@ object ProcSchmecken extends Process {
    val MIN_RETRY     = 1.0
    val MAX_RETRY     = 4.0
 
-   private val KONVUL_NUM = konvul( name + "-num", (1.2, 1.8), (2, 6) ) { (t, k) =>
-      Some( (t + 0.15, t + 0.3) -> (2, 6) )
+   private val KONVUL_NUM = konvul( name + "-num", (1.2, 1.8), (4, 7) ) { (t, k) =>
+      Some( (t + 0.15, t + 0.3) -> (4, 7) )
    }
 
-   private val TEND_FASTRETRY = tend( name + "fastretry", Lin, 0.0 -> (0.0, 0.0), 0.85 -> (0.0, 0.0), 1.3 -> (1.0, 1.0), (2.0, (0.0, 0.0), 'sin) )
-   private val TEND_ALLPROB   = tend( name + "allprob", Lin, 0.0 -> (0.3333, 0.3333), 0.85 -> (0.3333, 0.3333), 1.3 -> (1.0, 1.0), (2.0, (0.3333, 0.33333), 'sin) )
+   private val TEND_FASTRETRY = tend( name + "-fastretry", Lin, 0.0 -> (0.0, 0.0), 0.85 -> (0.0, 0.0), 1.3 -> (1.0, 1.0), (2.0, (0.0, 0.0), 'sin) )
+   private val TEND_ALLPROB   = tend( name + "-allprob", Lin, 0.0 -> (0.3333, 0.3333), 0.85 -> (0.3333, 0.3333), 1.3 -> (1.0, 1.0), (2.0, (0.3333, 0.33333), 'sin) )
+
+   private val TEND_RECTIME   = tend( name + "-rectime", Lin, 0.0 -> (10.0, 45.0), 1.0 -> (10.0, 45.0), 2.0 -> (20.0, 45.0) )
+   private val TEND_AMP       = tend( name + "-amp", Lin, 0.0 -> (1.0, 1.0), 1.0 -> (1.0, 1.0), (1.5, (2.0, 2.0), 'sin), (2.0, (1.0, 1.0), 'sin) )
+
+   private val anaNameF = name + "-anaf"
+   private val anaNameD = name + "-anad"
 
    def init(  implicit tx: ProcTxn ) {
-      filter( name ) {
+      def flonky( in: GE, pdur: ProcParamScalar, ppos: ProcParamScalar ) {
+         val recPath    = File.createTempFile( "sum", ".aif" ) // , sumPath
+         val b          = bufRecord( recPath.getAbsolutePath, in.numOutputs )
+         val dur        = pdur.ir
+         val env        = EnvGen.kr( Env.linen( 0.1, dur - 1.1, 1.0 ))
+         val phase      = Line.kr( 0, 1, dur )
+         DiskOut.ar( b.id, in * env )
+         val me         = Proc.local
+         1.react( phase ) { data =>
+            val Seq( ph ) = data
+            spawnAtomic( name + " gen pos update" ) { implicit tx => me.control( "pos" ).v = ph }
+         }
+         Done.kr( phase ).react {
+            spawnAtomic( name + " gen removal" ) { implicit tx =>
+               ProcessHelper.stopAndDispose( me )
+               inform( "injectWavelet" )
+               FScape.injectWavelet( recPath, TEND_AMP.decide )
+            }
+         }
+      }
+
+      filter( anaNameF ) {
          val pdur    = pScalar( "dur", ParamSpec( MIN_REC, MAX_REC ), MIN_REC )
          val ppos    = pScalar( "pos", ParamSpec( 0, 1 ), 0 )
-         val sumPath = new File( REC_PATH, "sum" )
          graph { in =>
-            val recPath    = File.createTempFile( "sum", ".aif", sumPath )
-//            val in         = LeakDC.ar( InFeedback.ar( masterBus.index, masterBus.numChannels ))
-            val b          = bufRecord( recPath.getAbsolutePath, in.numOutputs )
-            val dur        = pdur.ir
-            val env        = EnvGen.kr( Env.linen( 0.1, dur - 1.1, 1.0 ))
-            val phase      = Line.kr( 0, 1, dur )
-            DiskOut.ar( b.id, in * env )
-            val me         = Proc.local
-            1.react( phase ) { data =>
-               val Seq( ph ) = data
-               spawnAtomic( name + " gen pos update" ) { implicit tx => me.control( "pos" ).v = ph }
-            }
-            Done.kr( phase ).react {
-               spawnAtomic( name + " gen removal" ) { implicit tx =>
-                  ProcessHelper.stopAndDispose( me )
-                  FScape.injectWavelet( recPath )
-               }
-            }
-//            Silent.ar
+            flonky( in, pdur, ppos )
             in // thru
+         }
+      }
+
+      diff( anaNameD ) {
+         val pdur    = pScalar( "dur", ParamSpec( MIN_REC, MAX_REC ), MIN_REC )
+         val ppos    = pScalar( "pos", ParamSpec( 0, 1 ), 0 )
+         graph { in =>
+            flonky( in, pdur, ppos )
+            0.0
          }
       }
 
@@ -118,18 +135,27 @@ object ProcSchmecken extends Process {
       stopThinking
 
       def funkyShit( implicit tx: ProcTxn ) : Boolean = {
-         val pt   = if( coin( TEND_ALLPROB.decide )) ReplaceAll else ReplaceInternal
-         val can  = canReplaceTail( pt )
-         if( can ) {
-            val p = factory( name ).make
-            p.control( "dur" ).v = rrand( MIN_REC, MAX_REC )
-            p.control( "pos" ).v = 0.0
-            replaceTail( p, point = pt )
+         if( liveActive ) {
+            val pt   = if( coin( TEND_ALLPROB.decide )) ReplaceAll else ReplaceInternal
+            val can  = canReplaceTail( pt )
+            if( can ) {
+               val p = factory( anaNameF ).make
+               p.control( "dur" ).v = TEND_RECTIME.decide // rrand( MIN_REC, MAX_REC )
+               p.control( "pos" ).v = 0.0
+               replaceTail( p, point = pt )
+            }
+            can
+         } else {
+            val p = factory( anaNameD ).make
+            collAll ~> p
+            p.play
+            true
          }
-         can
       }
 
-      if( funkyShit ) {
+      val ok = funkyShit
+      inform( "starting analysis" + ok )
+      if( ok ) {
          startPlaying    // XXX stopPlaying missing
          for( n <- 1 until KONVUL_NUM.decideOrElse( 1 )) {
             delay( exprand( MIN_KONVULDLY, MAX_KONVULDLY ))( spawnAtomic( name + " konvul " + n ) { implicit tx =>
@@ -144,6 +170,7 @@ object ProcSchmecken extends Process {
    }
 
    private def makeDemDelay( t: Double )( implicit tx: ProcTxn ) {
+      inform( "delay for" + t + "s" )
       delay( t )( spawnAtomic( name + " delay done" )( delayDone( _ )))
    }
 }
