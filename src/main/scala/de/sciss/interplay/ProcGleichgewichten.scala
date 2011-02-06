@@ -74,6 +74,10 @@ object ProcGleichgewichten extends Process {
 
    val TEND_REENTRY  = tend( name + "-reentry", Exp, 0.0 -> (90.0, 135.0), 0.9 -> (90.0, 120.0), 1.5 -> (60.0, 60.0), 1.6 -> (999.9, 999.9) )
 
+//   val TEND_COMP     = tend( name + "-comp", Exp, 0.0 -> (1.0, 1.0), 1.0 -> (1.4, 1.7), 1.5 -> (2.0, 2.0), 2.0 -> (1.4, 1.7) )
+//   val TEND_COMP     = tend( name + "-comp", Exp, 0.0 -> (1.5, 1.5), 1.0 -> (2.0, 2.5), 1.5 -> (3.0, 3.0), 2.0 -> (1.5, 1.5) )
+   val TEND_COMP     = tend( name + "-comp", Exp, 0.0 -> (1.2, 1.3), 1.0 -> (1.8, 2.2), 1.5 -> (3.0, 3.0), 2.0 -> (1.5, 1.5) )
+
 //   val MIN_REENTRY   = 45.0
 //   val MAX_REENTRY   = 90.0
 
@@ -82,6 +86,7 @@ object ProcGleichgewichten extends Process {
          val ppos    = pAudio( "pos", ParamSpec( 0, 1 ), 0 )
          val pdur    = pAudio( "dur", ParamSpec( TEND_STEADY.overallLo, TEND_STEADY.overallHi ), TEND_STEADY.overallLo )
          val pspeed  = pAudio( "speed", ParamSpec( 1.0/8, 8, ExpWarp ), 1 )
+         val pcomp   = pControl( "comp", ParamSpec( 1.0, 3.0, ExpWarp ), 1 )
          graph {
             val speed      = pspeed.ar
             val dur        = pdur.ar
@@ -91,7 +96,8 @@ object ProcGleichgewichten extends Process {
             val frame      = LFSaw.ar( freq, -1 ).linlin( -1, 1, startFrame, stopFrame ) % BufFrames.ir( liveBuf.id )
             val amp        = (frame - startFrame).min( stopFrame - frame ).min( 48 ) / 48
             val sig        = BufRd.ar( liveBuf.numChannels, liveBuf.id, frame, interp = 2 )
-            sig * amp
+            val sig1       = sig * amp
+            Compander.ar( sig1, sig1, ratioBelow = pcomp.kr.reciprocal )
          }
       }
 
@@ -107,28 +113,39 @@ object ProcGleichgewichten extends Process {
 
 //   private val tail = Ref( List.empty[ Proc ])
 
+   private val usedRef = Ref( Set.empty[ Int ])
+
    private def analysisReady( implicit tx: ProcTxn ) {
       val (steady, steadyLo, steadyHi) = TEND_STEADY.decideWithBounds
       inform( "searchAnalysis " + steady )
       val algo = algos( TEND_ALGO.decideInt )
       searchAnalysis( steady,
-         maxResults = MASTER_NUMCHANNELS,
-         frameMeasure = minFlat( _ ), integMeasure = algo ) { res =>
+         maxResults = MASTER_NUMCHANNELS + usedRef().size,
+         frameMeasure = minFlat( _ ), integMeasure = algo ) { res0 =>
 
-         inform( "result " + res )
+         inform( "searchAnalysis done" )
          spawnAtomic( name + " searchAnalysis done" ) { implicit tx =>
+            val usedIter = usedRef().iterator
+            var resS = res0.map( _.idx )
+            while( resS.size > MASTER_NUMCHANNELS && usedIter.hasNext ) {
+               resS = resS - usedIter.next
+            }
+            resS = resS.take( MASTER_NUMCHANNELS )
+            inform( "playing " + resS )
+            usedRef.transform( _ ++ resS )
             stopThinking
             startPlaying
             val speed = TEND_SPEED.decide
-            val tail: List[ Proc ] = res.zipWithIndex.map( tup => {
-               val (smp, idx) = tup
+            val tail: List[ Proc ] = resS.zipWithIndex.map( tup => {
+               val (smpIdx, idx) = tup
                val genFact = factory( name )
                val p = genFact.make
                p.control( "dur" ).v = exprand( steadyLo, steady )
                // DDD p.control( "speed" ).v = fluctuate( phase )
    //               println( "juuu. measure = " + smp.measure )
                // measure is typically between 0.0 (maximally flat) and 0.5
-               p.control( "pos" ).v = framesToPos( smp.idx )
+               p.control( "pos" ).v = framesToPos( smpIdx )
+               p.control( "comp" ).v = TEND_COMP.decide
                p.control( "speed" ).v = speed
                val diffFact = factory( "O-one" )
                val d = diffFact.make
@@ -138,7 +155,7 @@ object ProcGleichgewichten extends Process {
                d
             })( breakOut )
 
-            if( res.nonEmpty ) {
+            if( resS.nonEmpty ) {
                val playTime = TEND_PLAY.decide
                inform( "Playing for " + playTime + "s" )
                delay( playTime ) {
