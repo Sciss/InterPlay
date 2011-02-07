@@ -280,7 +280,15 @@ object ProcSehen extends Process {
    private def inject( path: String )( implicit tx: ProcTxn ) {
       inform( "inject" )
       val spec = audioFileSpec( path )
-      val d = factory( "O-all" ).make       // XXX should use different spats
+//      val d = factory( "O-all" ).make       // XXX should use different spats
+      val d = factory( "O-pan" ).make
+      val spread = rrand( 0.25, 1.0 )
+      d.control( "spr" ).v    = spread    // 0 to 1
+      d.control( "rota" ).v   = 1   // amt 0 to 1
+      d.control( "azi" ).v    = rand( 360.0 )    // 0 to 360
+      d.control( "speed" ).v  = exprand( 1.0 / 20, 1.0 / 10 )  // freq
+      d.control( "amp" ).v    = 1.0 / math.sqrt( spread )   // account for less energy with lower spread?
+
       val g = factory( name ).make
       val org  = Org( g, d, path )
       orgRef.transform( _ + (g -> org) )

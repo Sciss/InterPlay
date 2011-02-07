@@ -33,8 +33,10 @@ import proc._
 import ugen._
 import DSL._
 import SoundProcesses._
+import InterPlay._
 import java.io.File
 import de.sciss.fscape.FScapeJobs
+import collection.immutable.{IndexedSeq => IIdxSeq}
 
 object ProcKoerper extends Process {
    import Process._
@@ -49,7 +51,8 @@ object ProcKoerper extends Process {
    val MIN_WAIT   = liveDur * 60 * 0.4 // 5
    val MAX_WAIT   = MIN_WAIT
 
-   private val anaName = name + "-ana"
+   private val anaName  = name + "-ana"
+   private val diffName = name + "-o"
 
    private val orgRef = Ref( Map.empty[ Proc, Org ])
    private case class Org( dur: Double, path1: Option[ String ], path2: Option[ String ])
@@ -98,6 +101,20 @@ object ProcKoerper extends Process {
             0.0
          }
       }
+
+      filter( diffName ) {
+         val pamp  = pAudio( "amp", ParamSpec( 0, 10 ), 1 )
+
+         graph { in =>
+            val sig           = (in * Lag.ar( pamp.ar, 0.1 )).outputs
+            val inChannels    = sig.size
+            val outChannels   = MASTER_NUMCHANNELS
+            val shift         = MASTER_NUMCHANNELS / 2
+            val outSig        = IIdxSeq.tabulate( outChannels )( ch => sig( (ch + shift) % inChannels ))
+            outSig
+         }
+      }
+
       waitForAnalysis( frameToSecs( 1 ))( spawnAtomic( name + " live started" )( liveStarted( _ )))
    }
 
@@ -121,10 +138,10 @@ object ProcKoerper extends Process {
 //      inform( "recs done" )
       val numIRs = (dur / 5 + 0.5).toInt
       tx.afterCommit { tx =>
-         val tmpPath = File.createTempFile( "fsc", ".aif" ).getAbsolutePath()
-         val outPath = File.createTempFile( "fsc", ".aif" ).getAbsolutePath()
-         val docBleach = FScapeJobs.Bleach( path2, None, tmpPath, length = 256, feedback = "-50.0dB" )
-         val docConv = FScapeJobs.Convolution( path1, tmpPath, outPath, numIRs = numIRs, winStep = "0.5s", normIRs = true, minPhase = false /* true */)
+         val tmpPath    = File.createTempFile( "fsc", ".aif" ).getAbsolutePath()
+         val outPath    = File.createTempFile( "fsc", ".aif" ).getAbsolutePath()
+         val docBleach  = FScapeJobs.Bleach( path2, None, tmpPath, length = 256, feedback = "-50.0dB" )
+         val docConv    = FScapeJobs.Convolution( path1, tmpPath, outPath, numIRs = numIRs, winStep = "0.5s", normIRs = true, minPhase = false /* true */)
          FScape.fsc3.processChain( name, docBleach :: docConv :: Nil )( success => spawnAtomic( name + " fscape done" )( fscapeDone( success, outPath )( _ )))
       }
    }
@@ -133,7 +150,7 @@ object ProcKoerper extends Process {
       if( success ) {
          if( !keepGoing ) return
          inform( "inject" )
-         FScape.inject( new File( outPath ))
+         FScape.inject( new File( outPath ), diffName = diffName )
       } else {
          inform( "fscape failed", force = true )
       }

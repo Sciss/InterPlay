@@ -290,3 +290,11 @@ suspicion: that one of the spawn'ed thingees runs an infinite loop
 :::::::::
 
 wavelet: could fade out somehow
+
+:::::::::
+
+diffs:
+[OK]	ProcSehen --> slowly drifting
+[OK]	pLiveDiff -- could be low freq noise?
+[OK]	ProcKoerper --> could be just a channel shift
+[OK]	ProcSchmecken --> injectWavelet (is probably fine this way)
