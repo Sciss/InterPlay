@@ -341,8 +341,25 @@ object SoundProcesses {
             pout.ar( in )
          }
       }
+      val factCollAll = diff( "D-mast" ) {
+         val pgate   = pControl( "gate", ParamSpec( 0, 1, LinWarp, 1 ), 1 )
+         val pout    = pAudioOut( "out", None )
+         graph { in =>
+            require( in.numOutputs == MASTER_NUMCHANNELS )
+            val liveSecs   = liveDur * 60
+            val remainSecs = totalDur * 60 - liveSecs
+            val climax     = remainSecs - 60
+            val release    = remainSecs - climax
+            val boost      = (2.5).dbamp
+            val env        = EnvGen.kr( new Env( 1,
+               List( EnvSeg( liveSecs, 1 ), EnvSeg( climax, boost ), EnvSeg( release, 1 )), releaseNode = 0 ), gate = pgate.kr )
+            val flt        = in * env
+            pout.ar( flt )
+         }
+      }
+
       collInt = filtThru.make
-      collAll = diffThru.make
+      collAll = factCollAll.make // diffThru.make
       val dummy = (gen( "dummy" ) { graph { Silent.ar( MASTER_NUMCHANNELS )}}).make
       dummy ~> collInt ~> collAll
       ProcessHelper.playNewDiff( collAll, postFun = dummy.dispose( _ )) // dummy needed to get the input channel :-(
@@ -499,6 +516,7 @@ object SoundProcesses {
       if( !pLiveDiff.isPlaying ) pLiveDiff.play
       if( !pLiveHlb.isPlaying )  pLiveHlb.play
       if( !pLive.isPlaying )     pLive.play
+      collAll.control( "gate" ).v = 0  // "release" the envelope
       tx.afterCommit { _ =>
          logicalTime0 = System.currentTimeMillis
       }
