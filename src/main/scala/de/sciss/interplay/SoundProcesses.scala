@@ -492,9 +492,11 @@ object SoundProcesses {
    def startLive( implicit tx: ProcTxn ) {
       val wasStarted = liveStarted.swap( true )
       if( wasStarted ) return
-//      if( !collLive.isPlaying )  collLive.play
+
+      if( AUTO_RECORD ) mitschnitt( true )
+
       if( !collLive.isPlaying ) xfade( 3.0 ) { collLive.play }
-      if( !pLiveDiff.isPlaying )  pLiveDiff.play
+      if( !pLiveDiff.isPlaying ) pLiveDiff.play
       if( !pLiveHlb.isPlaying )  pLiveHlb.play
       if( !pLive.isPlaying )     pLive.play
       tx.afterCommit { _ =>

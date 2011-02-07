@@ -74,6 +74,7 @@ object InterPlay {
 //   lazy val FSC_PATH       = new File( REC_PATH, "fsc" )
 
    val USE_MIDI            = true
+   val AUTO_RECORD         = true
 
    var LIVE_FILE           = Some( "live110206_201606.irc" )   // Some( "live110204_210950.irc" ) // Some( "live110131_214418.irc" ) // Some( "live110125_143645.irc" ) // Some( "live110128_113557.irc" ) // Some( "live110128_121639.irc" )
    val LIVE_MODE           = if( LIVE_FILE.isDefined ) 1 else 0
