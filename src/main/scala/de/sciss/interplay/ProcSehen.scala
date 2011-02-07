@@ -82,11 +82,16 @@ object ProcSehen extends Process {
 
    val MAX_TIME        = 1.7
 
+   val MIN_ERASE     = 20.0
+   val MAX_ERASE     = 30.0
+
    private val orgRef = Ref( Map.empty[ Proc, Org ])
    private case class Org( gen: Proc, diff: Proc, path: String )
+   private val eraseRef = Ref( Map.empty[ Proc, Proc ])  // erase to gen
 
-   private lazy val anaNameD = name + "-anad"
-   private lazy val anaNameF = name + "-anaf"
+   private lazy val anaNameD  = name + "-anad"
+   private lazy val anaNameF  = name + "-anaf"
+   private lazy val eraseName = name + "-erase"
 
    def init(  implicit tx: ProcTxn ) {
       def flonky( in: GE ) {
@@ -144,11 +149,36 @@ object ProcSehen extends Process {
             val done       = frameInteg > (pframes.ir + SAMPLE_RATE)
             done.react {
                spawnAtomic( name + " gen removal" ) { implicit tx =>
-                  orgRef.transform( _ - me )
-                  Process.removeAndDispose( name + " gen removal", org.diff, 0.1 )
+                  val map = orgRef()
+                  map.get( me ).foreach { org =>
+                     orgRef.set( map - me )
+                     Process.removeAndDispose( name + " gen removal", org.diff, 0.1 )
+                  }
                }
             }
             sig
+         }
+      }
+
+      filter( eraseName ) {
+         val pdur = pScalar( "dur", ParamSpec( 2.0, 60.0, ExpWarp ), 10.0 )
+         graph { in =>
+            val me      = Proc.local
+            val dur     = pdur.ir
+            val freq    = XLine.ar( 20, 18000, dur - 1 )
+            val fadeIn  = Line.ar( -1, 1, 1 )
+            val fadeOut = EnvGen.ar( Env.asr( 0, 1, 1 ), gate = 1 - Done.kr( freq ))
+            val flt     = HPF.ar( in, freq ) * fadeOut
+            Done.kr( fadeOut ).react {
+               spawnAtomic( name + " gen removal" ) { implicit tx =>
+                  val map = eraseRef()
+                  map.get( me ).foreach { pref =>
+                     orgRef.transform( _ - pref )
+                     Process.removeAndDispose( name + " erase removal", me )
+                  }
+               }
+            }
+            LinXFade2.ar( in, flt, fadeIn )
          }
       }
 
@@ -166,6 +196,18 @@ object ProcSehen extends Process {
       val dlyTime = TEND_REENTRY.decide * factor
       inform( "reentry after " + dlyTime + "s" )
       delay( dlyTime )( spawnAtomic( name + " reentry done" )( start( _ )))
+   }
+
+   override protected def stopped( implicit tx: ProcTxn ) {
+      orgRef().values.map { org =>
+         org.diff.audioOutput( "out" ).edges.map( _.targetVertex ).find( v => !v.name.startsWith( "$" )).foreach { ptgt =>
+            val perase = factory( eraseName ).make
+            perase.control( "dur" ).v = exprand( MIN_ERASE, MAX_ERASE )
+            org.diff ~| perase |> ptgt
+            if( !perase.isPlaying ) perase.play
+            eraseRef.transform( _ + (perase -> org.gen) )
+         }
+      }
    }
 
    private def analysisReady {

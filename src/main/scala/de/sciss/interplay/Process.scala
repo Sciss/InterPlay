@@ -208,13 +208,19 @@ object Process {
     * does this for all the proc's inputs
     */
    def removeAndDispose( info: => String, p: Proc, fadeTime: Double = 0.0, postFun: ProcTxn => Unit = _ => () )( implicit tx: ProcTxn ) {
-      if( fadeTime > 0 ) glide( fadeTime ) {
-         val ctrl = p.control( "amp" )
-         ctrl.v = ctrl.spec.lo
-      }
-      ProcessHelper.whenGlideDone( info, p, "amp" ) { implicit tx =>
+      def dispo( implicit tx: ProcTxn ) {
          disposeSubTree( p )
          postFun( tx )
+      }
+
+      if( fadeTime > 0 ) {
+         glide( fadeTime ) {
+            val ctrl = p.control( "amp" )
+            ctrl.v = ctrl.spec.lo
+         }
+         ProcessHelper.whenGlideDone( info, p, "amp" )( dispo( _ ))
+      } else {
+         dispo
       }
    }
 
@@ -557,8 +563,13 @@ trait Process extends TxnModel[ Process.Update ] {
    def init( implicit tx: ProcTxn ) : Unit
    final def stop( implicit tx: ProcTxn ) {
       val st = state
-      if( st.valid ) state = st.copy( valid = false )
+      if( st.valid ) {
+         state = st.copy( valid = false )
+         stopped
+      }
    }
+
+   protected def stopped( implicit tx: ProcTxn ) {}
 
    protected def keepGoing( implicit tx: ProcTxn ) = state.valid
 
