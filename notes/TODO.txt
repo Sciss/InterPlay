@@ -298,3 +298,17 @@ diffs:
 [OK]	pLiveDiff -- could be low freq noise?
 [OK]	ProcKoerper --> could be just a channel shift
 [OK]	ProcSchmecken --> injectWavelet (is probably fine this way)
+
+::::::::::::::::
+
+382 -3
+706 -3
+799 -3
+929 -6
+1333 -4.5
+2000 shelf
+
+:::::
+
+! Extra Stromverteiler (mit Switch fuer Lampen)
+! Stromverlaengerung

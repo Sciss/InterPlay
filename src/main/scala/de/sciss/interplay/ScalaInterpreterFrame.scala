@@ -160,7 +160,7 @@ import support._
          val txnTxt = """class _txnBody""" + txnId + """( implicit t: ProcTxn ) {
 """ + txt + """
 }
-val _txnRes""" + txnId + """ = atomic( implicit t => new _txnBody""" + txnId + """ )
+val _txnRes""" + txnId + """ = Process.atomic( "repl" )( implicit t => new _txnBody""" + txnId + """ )
 import _txnRes""" + txnId + """._
 """
 

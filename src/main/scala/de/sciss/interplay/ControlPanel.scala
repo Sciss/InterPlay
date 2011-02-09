@@ -122,6 +122,11 @@ class ControlPanel() extends JPanel {
 //            }
 //         })
 //      }
+      panel.add( tinyButton( "FB" )( Process.spawnAtomic( "Query FB Settings" ) { implicit tx =>
+         pLiveHlb.params.foreach { p =>
+            println( p.name + " : " + pLiveHlb.control( p.name ).v )
+         }
+      }))
 
       val numCh = masterBus.numChannels
       masterMeterPanel.setOrientation( SwingConstants.HORIZONTAL )

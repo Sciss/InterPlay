@@ -51,6 +51,14 @@ object SoundProcesses {
    val LIVE_AMP_SPEC = ParamSpec( 0.0, 0.6, LinWarp ) -> 0.3333 // 0.25 // 0.3 // 0.3333
    val FSCAPE_PAUSE  = true
 
+   val FB_FLIPPER    = false // true
+   val FB_UP_THRESH  = 1.0
+   val FB_DN_THRESH  = 4.0
+   val FB_ATHRESH    = 0.02
+   val FB_PTHRESH    = 0.1
+   val FB_GAIN       = 24.0
+   val FB_NUMSTAGES  = 3
+
    import AnalysisBuffer.{anaChans, anaWinStep}
    val maxLiveAnaFr   = {
       val secs = liveDur * 60
@@ -469,24 +477,42 @@ object SoundProcesses {
 //      pLiveHlb = fltHilb.make
 //      pLiveHlb.control( "freq" ).v = -1e-6
       pLiveHlb = (filter( "fb" ) {
-         val pup        = pControl( "up", ParamSpec( 0.1, 10, ExpWarp ), 2 )
-         val pdn        = pControl( "dn", ParamSpec( 0.1, 10, ExpWarp ), 4 )
-         val pathresh   = pControl( "athr", ParamSpec( 0.001, 1, ExpWarp ), 0.003 )
-         val ppthresh   = pControl( "pthr", ParamSpec( 0.1, 1, ExpWarp ), 0.5 )
+         val pup        = pControl( "up", ParamSpec( 0.1, 10, ExpWarp ), FB_UP_THRESH )
+         val pdn        = pControl( "dn", ParamSpec( 0.1, 10, ExpWarp ), FB_DN_THRESH )
+         val pathresh   = pControl( "athr", ParamSpec( 0.001, 0.2, ExpWarp ), FB_ATHRESH )
+         val ppthresh   = pControl( "pthr", ParamSpec( 0.1, 1, ExpWarp ), FB_PTHRESH )
+         val pgain      = pControl( "gain", ParamSpec( 6, 30, ExpWarp ), FB_GAIN )
          graph { in =>
-            val flt0 = MidEQ.ar( in, 1328, 1.0/10, -18 )
+            val flt0 = {
+               var eq: GE = in
+               eq = MidEQ.ar( eq, 382, 5.reciprocal, -3 )
+               eq = MidEQ.ar( eq, 706, 10.reciprocal, -3 )
+               eq = MidEQ.ar( eq, 799, 13.reciprocal, -3 )
+               eq = MidEQ.ar( eq, 929, 11.reciprocal, -6 )
+               eq = MidEQ.ar( eq, 1333, 8.reciprocal, -6 )
+               eq = BHiShelf.ar( eq, 5500, 1, 6 )
+               eq
+            }
             def stage( in: GE ) = {
                val Seq( freq, hasPitch ) = Pitch.kr( in,
                   initFreq = 441,
                   minFreq  = 441,
                   maxFreq  = 16000,
                   execFreq = 441,
-                  ampThresh = 0.05,
-                  peakThresh = 0.2 ).outputs
-               val q = freq.linlin( 441, 16000, 9, 2 ) + 1
-               MidEQ.ar( in, freq, q.reciprocal, LagUD.kr( hasPitch * -18, pup.kr, pdn.kr ))
+                  ampThresh = pathresh.kr,
+                  peakThresh = ppthresh.kr ).outputs
+               val q = freq.linlin( 441, 16000, 11, 2 ) + 1   // 9, 2 + 1
+               MidEQ.ar( in, freq, q.reciprocal, LagUD.kr( hasPitch * -(pgain.kr), pup.kr, pdn.kr ))
             }
-            stage( stage( stage( flt0 )))
+            var flt1: GE = flt0
+            for( i <- 0 until FB_NUMSTAGES ) flt1 = stage( flt1 )
+            if( FB_FLIPPER ) {
+               val hpz        = HPZ1.ar( flt1 ) * 2
+               val flipFreq   = 2
+               val flipLag    = 0.1
+               val flipped    = XFade2.ar( hpz, -hpz, Lag.ar( LFPulse.kr( flipFreq ) * 2 - 1, flipLag ))
+               Integrator.ar( flipped, 0.995 )
+            } else flt1
          }
       }).make
 
