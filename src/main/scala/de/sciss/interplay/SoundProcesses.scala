@@ -48,7 +48,7 @@ object SoundProcesses {
    val totalDur      = 7.0 // 6.0    // minutes
 
 //   val LIVE_AMP_SPEC = ParamSpec( 0.1, 10, ExpWarp ) -> 0.5
-   val LIVE_AMP_SPEC = ParamSpec( 0.0, 0.6, LinWarp ) -> 0.25 // 3 // 3333
+   val LIVE_AMP_SPEC = ParamSpec( 0.0, 0.6, LinWarp ) -> 0.3333 // 0.25 // 0.3 // 0.3333
 
    import AnalysisBuffer.{anaChans, anaWinStep}
    val maxLiveAnaFr   = {
@@ -222,6 +222,23 @@ object SoundProcesses {
                   sig( ch % inChannels ) * (1 - idx.absdif( ch ).min( 1 )))
                pout.ar( placeChannels( outSig ))
             }
+         }
+      }
+
+      filter( "D-test" ) {
+         val pamp  = pAudio( "amp", ParamSpec( 0, 10 ), 1 )
+         val pfreq = pControl( "freq", ParamSpec( 0.1, 10, ExpWarp ), 1 )
+
+         graph { in =>
+            val sig           = (in * Lag.ar( pamp.ar, 0.1 )).outputs
+            val inChannels    = sig.size
+            val outChannels   = MASTER_NUMCHANNELS
+//            val idx           = Lag.ar( pidx.ar, 0.1 )
+            val idx           = Stepper.kr( Impulse.kr( pfreq.kr ), min = 0, max = MASTER_NUMCHANNELS )
+            val outSig        = IIdxSeq.tabulate( outChannels )( ch =>
+               sig( ch % inChannels ) * (1 - idx.absdif( ch ).min( 1 )))
+            //placeChannels( outSig )
+            outSig
          }
       }
 

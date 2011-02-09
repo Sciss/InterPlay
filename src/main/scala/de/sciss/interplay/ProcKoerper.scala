@@ -142,7 +142,7 @@ object ProcKoerper extends Process {
          val outPath    = File.createTempFile( "fsc", ".aif" ).getAbsolutePath()
          val docBleach  = FScapeJobs.Bleach( path2, None, tmpPath, length = 256, feedback = "-50.0dB" )
          val docConv    = FScapeJobs.Convolution( path1, tmpPath, outPath, numIRs = numIRs, winStep = "0.5s", normIRs = true, minPhase = false /* true */)
-         FScape.fsc3.processChain( name, docBleach :: docConv :: Nil )( success => spawnAtomic( name + " fscape done" )( fscapeDone( success, outPath )( _ )))
+         FScape.fsc.processChain( name, docBleach :: docConv :: Nil )( success => spawnAtomic( name + " fscape done" )( fscapeDone( success, outPath )( _ ))) // fsc3
       }
    }
 

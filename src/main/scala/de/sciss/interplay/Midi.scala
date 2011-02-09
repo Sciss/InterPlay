@@ -32,6 +32,7 @@ import javax.sound.midi._
 import de.sciss.nuages.NuagesPanel
 import de.sciss.synth.proc.ProcTxn
 import SoundProcesses._
+import de.sciss.synth.Model
 
 object Midi {
    val verbose    = true
@@ -42,10 +43,13 @@ object Midi {
    var DUMP_IN    = false
    var DUMP_OUT   = false
 
-   val MIC_CHAN   = 7
-   val MAST_CHAN  = 5 // 6 = motor broken
-   val PLAY_BUT   = 89
-   val STOP_BUT   = 92
+   val MIC_CHAN      = 7
+   val MAST_CHAN     = 5 // 6 = motor broken
+   val PLAY_BUT      = 89
+   val STOP_BUT      = 92
+   val TIME_BUT_OFF  = 65
+   val NUM_TIME_BUT  = 8
+//   val TEST_BUT      = ...
 
    private def inform( what: String ) {
       println( "Midi : " + what )
@@ -128,6 +132,16 @@ object Midi {
       ccOut( MAST_CHAN, 7, (NuagesPanel.masterAmpSpec._1.unmap( InterPlay.INITIAL_MASTER_VOLUME ) * 127 + 0.5).toInt )
       ccOut( 0, PLAY_BUT, 0 )
       ccOut( 0, STOP_BUT, 0 )
+      for( num <- TIME_BUT_OFF until (TIME_BUT_OFF + NUM_TIME_BUT) ) ccOut( 0, num, 0 )
+
+      var timeButsLit = 0
+      SoundProcesses.anaClientBuf.addListener {
+         case AnalysisBuffer.FrameUpdated( idx, true ) =>
+            val toLit = idx * NUM_TIME_BUT / (SoundProcesses.anaClientBuf.numFrames - 1)
+            while( timeButsLit < toLit ) {
+               ccOut( 0, TIME_BUT_OFF + timeButsLit, 127 )
+            timeButsLit += 1 }
+      }
    }
 
    def ccOut( ch: Int, num: Int, v: Int ) {

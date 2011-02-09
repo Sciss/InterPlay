@@ -85,6 +85,8 @@ object ProcSehen extends Process {
    val MIN_ERASE     = 20.0
    val MAX_ERASE     = 30.0
 
+   val MAX_PIPE      = 2
+
    private val orgRef = Ref( Map.empty[ Proc, Org ])
    private case class Org( gen: Proc, diff: Proc, path: String )
    private val eraseRef = Ref( Map.empty[ Proc, Proc ])  // erase to gen
@@ -92,6 +94,8 @@ object ProcSehen extends Process {
    private lazy val anaNameD  = name + "-anad"
    private lazy val anaNameF  = name + "-anaf"
    private lazy val eraseName = name + "-erase"
+
+   private val inThePipeline = Ref( 0 )
 
    def init(  implicit tx: ProcTxn ) {
       def flonky( in: GE ) {
@@ -213,23 +217,26 @@ object ProcSehen extends Process {
    private def analysisReady {
       spawnAtomic( name + " analysisReady" ) { implicit tx =>  // XXX must spawn, don't know why? otherwise system blows up!
          if( keepGoing && (SoundProcesses.logicalTime < MAX_TIME) ) {
-            val ok = if( liveActive ) {
-               val rnd = rand( 1.0 )
-               val liveProb   = TEND_LIVE_PROB.decide
-               val intProb    = TEND_INT_PROB.decide
-               val pt         = if( rnd <= liveProb ) ReplaceLive else if( rnd - liveProb <= intProb ) ReplaceInternal else ReplaceAll
-               val res        = canReplaceTail( pt )
-               if( res ) {
-                  val p = factory( anaNameF ).make
-                  replaceTail( p, point = pt )
+            val ok = if( inThePipeline() < MAX_PIPE ) {
+               if( liveActive ) {
+                  val rnd = rand( 1.0 )
+                  val liveProb   = TEND_LIVE_PROB.decide
+                  val intProb    = TEND_INT_PROB.decide
+                  val pt         = if( rnd <= liveProb ) ReplaceLive else if( rnd - liveProb <= intProb ) ReplaceInternal else ReplaceAll
+                  val res        = canReplaceTail( pt )
+                  if( res ) {
+                     val p = factory( anaNameF ).make
+                     replaceTail( p, point = pt )
+                  }
+                  res
+               } else {
+                  val p = factory( anaNameD ).make
+                  collAll ~> p
+                  p.play
+                  true
                }
-               res
-            } else {
-               val p = factory( anaNameD ).make
-               collAll ~> p
-               p.play
-               true
-            }
+            } else false
+
             inform( "analysisReady " + ok )
             if( ok ) startThinking
 
@@ -279,20 +286,23 @@ object ProcSehen extends Process {
                val downThresh = upThresh * TEND_HYST.decide
                val ctrlPath   = afCtrl.file.get.getAbsolutePath()
                val outPath    = File.createTempFile( "fsc", ".aif" ).getAbsolutePath()
+               atomic( name + " add to pipeline" ) { implicit tx => inThePipeline.transform( _ + 1 )}
                val doc = FScapeJobs.DrMurke(
                   inPath, ctrlPath, outPath, FScapeJobs.OutputSpec.aiffInt, FScapeJobs.Gain.normalized,
                   mode = "up", threshUp = upThresh.toString, threshDown = downThresh.toString,
                   durUp = "0.1s", durDown = "0.1s", attack = "0.01s", release = "1.0s", spacing = Some( "0s" ))
-               FScape.fsc2.process( "murke", doc ) { success =>
+               FScape.fsc.process( "murke", doc ) { success => // fsc2
                   informDir( "murke done " + success )
                   // atomic can lead to timeout here...
-                  if( success ) spawnAtomic( name + " fscape done" ) { implicit tx =>
-                     stopThinking
-                     startPlaying
-                     inject( outPath )
-                     //                     reentry
-                  } else {
-                     informDir( "FScape failure!", force = true )
+                  spawnAtomic( name + " fscape done " + success ) { implicit tx =>
+                     if( success ) {
+                        stopThinking
+                        startPlaying
+                        inject( outPath )
+                     } else {
+                        inform( "FScape failure!", force = true )
+                     }
+                     inThePipeline.transform( _ - 1 )
                   }
                }
             case None =>
@@ -320,7 +330,7 @@ object ProcSehen extends Process {
    }
 
    private def inject( path: String )( implicit tx: ProcTxn ) {
-      inform( "inject" )
+      inform( "inject; pipe = " + inThePipeline() )
       val spec = audioFileSpec( path )
 //      val d = factory( "O-all" ).make       // XXX should use different spats
       val d = factory( "O-pan" ).make

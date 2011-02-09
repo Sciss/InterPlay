@@ -157,8 +157,8 @@ object ProcTasten extends Process {
          FScapeJobs.Bleach(
             in       = outF.file.get.getAbsolutePath,
             out      = outPath.getAbsolutePath,
-            spec     = FScapeJobs.OutputSpec.aiffFloat,
-            gain     = FScapeJobs.Gain.immediate,
+//            spec     = FScapeJobs.OutputSpec.aiffFloat,
+//            gain     = FScapeJobs.Gain.immediate,
             length   = 256,
             feedback = "-50dB",
             clip     = "18dB"
@@ -169,6 +169,7 @@ object ProcTasten extends Process {
 
       FScape.fsc.processChain( name, jobs ) { res =>
          if( res ) {
+            informDir( "injecting" )
             def gugu( jobs: List[ FScapeJobs.Bleach ], first: Boolean ) {
                jobs match {
                   case bleach :: tail =>

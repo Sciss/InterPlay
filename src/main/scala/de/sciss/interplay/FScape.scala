@@ -43,22 +43,29 @@ object FScape {
    val verbose = false
 
    lazy val fsc = {
-      val res = FScapeJobs()
+      val res = FScapeJobs( numThreads = 3 )
       res.verbose = verbose
+//      res.dumpOSC( true )
+      res.connect( timeOut = 10.0 ) {
+         case true =>
+            println( "Connected to FScape." )
+         case false =>
+            println( "!!!!!!!! FSCAPE CONNECT FAILED !!!!!!!!")
+      }
       res
    }
 
-   lazy val fsc2 = {
-      val res = FScapeJobs()
-      res.verbose = verbose
-      res
-   }
-
-   lazy val fsc3 = {
-      val res = FScapeJobs()
-      res.verbose = verbose
-      res
-   }
+//   lazy val fsc2 = {
+//      val res = FScapeJobs()
+//      res.verbose = verbose
+//      res
+//   }
+//
+//   lazy val fsc3 = {
+//      val res = FScapeJobs()
+//      res.verbose = verbose
+//      res
+//   }
 
    def injectWavelet( inPath: File, amp: Double = 1.0 )( implicit tx: ProcTxn ) {
       IPProcess.afterCommit( tx )( actInjectWavelet( inPath, amp ))
