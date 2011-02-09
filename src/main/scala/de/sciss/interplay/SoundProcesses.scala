@@ -49,6 +49,7 @@ object SoundProcesses {
 
 //   val LIVE_AMP_SPEC = ParamSpec( 0.1, 10, ExpWarp ) -> 0.5
    val LIVE_AMP_SPEC = ParamSpec( 0.0, 0.6, LinWarp ) -> 0.3333 // 0.25 // 0.3 // 0.3333
+   val FSCAPE_PAUSE  = true
 
    import AnalysisBuffer.{anaChans, anaWinStep}
    val maxLiveAnaFr   = {
@@ -167,7 +168,7 @@ object SoundProcesses {
 
       gen( "test" ) {
          graph {
-            PinkNoise.ar( LFPulse.kr( 1 ))
+            PinkNoise.ar( 1 ) // LFPulse.kr( 1 )
          }
       }
 
@@ -223,22 +224,22 @@ object SoundProcesses {
                pout.ar( placeChannels( outSig ))
             }
          }
-      }
 
-      filter( "D-test" ) {
-         val pamp  = pAudio( "amp", ParamSpec( 0, 10 ), 1 )
-         val pfreq = pControl( "freq", ParamSpec( 0.1, 10, ExpWarp ), 1 )
+         diff( "D-test" + suff ) {
+            val pamp  = pAudio( "amp", ParamSpec( 0, 10 ), 1 )
+            val pfreq = pControl( "freq", ParamSpec( 0.1, 10, ExpWarp ), 1 )
+            val pout  = pAudioOut( "out", None )
 
-         graph { in =>
-            val sig           = (in * Lag.ar( pamp.ar, 0.1 )).outputs
-            val inChannels    = sig.size
-            val outChannels   = MASTER_NUMCHANNELS
+            graph { in =>
+               val sig           = (in * Lag.ar( pamp.ar, 0.1 )).outputs
+               val inChannels    = sig.size
+               val outChannels   = numCh
 //            val idx           = Lag.ar( pidx.ar, 0.1 )
-            val idx           = Stepper.kr( Impulse.kr( pfreq.kr ), min = 0, max = MASTER_NUMCHANNELS )
-            val outSig        = IIdxSeq.tabulate( outChannels )( ch =>
-               sig( ch % inChannels ) * (1 - idx.absdif( ch ).min( 1 )))
-            //placeChannels( outSig )
-            outSig
+               val idx           = Stepper.kr( Impulse.kr( pfreq.kr ), min = 0, max = numCh )
+               val outSig        = IIdxSeq.tabulate( outChannels )( ch =>
+                  sig( ch % inChannels ) * (1 - idx.absdif( ch ).min( 1 )))
+               pout.ar( placeChannels( outSig ))
+            }
          }
       }
 
@@ -487,6 +488,20 @@ object SoundProcesses {
             val sig          = (in * Lag.ar( pamp.ar, 0.1 )).outputs
             val inChannels   = sig.size
             val outChannels  = MASTER_NUMCHANNELS
+
+            if( FSCAPE_PAUSE ) {
+               val liveSecs = liveDur * 60
+               val imp0 = DC.kr( 1 )
+               TDelay.kr( imp0, ExpRand( liveSecs * 0.8, liveSecs * 0.9 )).react {
+                  println( "PAUSE FSCAPE" )
+                  FScape.fsc.pause()
+               }
+//               val remain = totalDur - liveDur
+               TDelay.kr( imp0, liveSecs + ExpRand( 50, 70 )).react {
+                  println( "RESUME FSCAPE" )
+                  FScape.fsc.resume()
+               }
+            }
 
             val sig1: GE     = List.tabulate( outChannels )( ch => sig( ch % inChannels ))
             val freq         = pfreq.kr

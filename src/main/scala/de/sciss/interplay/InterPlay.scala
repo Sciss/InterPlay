@@ -240,7 +240,7 @@ object InterPlay {
       f.setBounds( SCREEN_BOUNDS.x, y1, maxX - SCREEN_BOUNDS.x, maxY - y1 )
       f.setUndecorated( true )
       f.setVisible( true )
-      disp.zoom( new Point2D.Float( f.panel.getWidth(), f.panel.getHeight() ), 0.5 ) // don't ask me how these coordinates work
+      disp.zoom( new Point2D.Float( f.panel.getWidth() * 1.5f, f.panel.getHeight() * 1.5f ), 0.66667 ) // don't ask me how these coordinates work
       support.nuages = f
 
       val anaView = new AnalysisView( anaClientBuf, anaMarkers, math.min( anaClientBuf.numFrames, maxX - SCREEN_BOUNDS.x ), 96 )

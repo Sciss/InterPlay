@@ -330,7 +330,8 @@ object ProcSehen extends Process {
    }
 
    private def inject( path: String )( implicit tx: ProcTxn ) {
-      inform( "inject; pipe = " + inThePipeline() )
+      val pipInf = inThePipeline()  // IMPORTANT: grab this here, because inform evaluates _after_ the commit!
+      inform( "inject; pipe = " + pipInf )
       val spec = audioFileSpec( path )
 //      val d = factory( "O-all" ).make       // XXX should use different spats
       val d = factory( "O-pan" ).make
