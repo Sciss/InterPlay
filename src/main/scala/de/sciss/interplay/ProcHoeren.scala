@@ -64,7 +64,8 @@ object ProcHoeren extends Process {
    private val TEND_THRESH    = tend( name + "thresh", Lin, 0.0 -> (12.0, 12.0), 1.0 -> (12.0, 12.0), 2.0 -> (9.0, 18.0) )
    private val TEND_SPEED     = tend( name + "speed", Exp, 0.0 -> (1.0, 1.0), 1.0 -> (1.0, 1.0), (2.0, (0.25, 1.0), 'sin) )
    private val TEND_STICKY    = tend( name + "sticky", Lin, 0.0 -> (10.0, 10.0), 1.0 -> (10.0, 10.0), 2.0 -> (7.0, 20.0) )
-   private val TEND_REENTRY   = tend( name + "reentry", Lin, 0.0 -> (10.0, 10.0), 1.0 -> (10.0, 10.0), 2.0 -> (7.0, 10.0) )
+//   private val TEND_REENTRY   = tend( name + "reentry", Lin, 0.0 -> (10.0, 10.0), 1.0 -> (10.0, 10.0), 2.0 -> (7.0, 10.0) )
+   private val TEND_REENTRY   = tend( name + "reentry", Lin, 0.0 -> (10.0, 10.0), (1.0, (6.0, 8.0), 'step), (1.5, (8.5, 10.0), 'step), 2.0 -> (7.0, 10.0) )
 
    private val anaRef   = Ref( Map.empty[ Proc, IntMap[ Org ]])   // ana-proc to chan->org
    private val genRef   = Ref( Map.empty[ Proc, Org ])   // gen-proc to org

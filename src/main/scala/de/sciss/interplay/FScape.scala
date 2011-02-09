@@ -40,7 +40,7 @@ import synth.proc.{Ref, ParamSpec, ProcDemiurg, Proc, ProcTxn, DSL}
 object FScape {
    import FScapeJobs._
 
-   val verbose = false
+   val verbose = true
 
    lazy val fsc = {
       val res = FScapeJobs( numThreads = 3 )

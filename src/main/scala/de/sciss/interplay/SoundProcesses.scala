@@ -372,6 +372,19 @@ object SoundProcesses {
             val env        = EnvGen.kr( new Env( 1,
                List( EnvSeg( liveSecs, 1 ), EnvSeg( climax, boost ), EnvSeg( release, 1 )), releaseNode = 0 ), gate = pgate.kr )
             val flt        = in * env
+
+            if( FSCAPE_PAUSE ) {
+               val imp0 = DC.kr( 1 )
+               TDelay.kr( imp0, ExpRand( liveSecs * 0.8, liveSecs * 0.9 )).react {
+                  println( "PAUSE FSCAPE" )
+                  FScape.fsc.pause()
+               }
+               TDelay.kr( imp0, liveSecs + ExpRand( 60, 90 )).react {
+                  println( "RESUME FSCAPE" )
+                  FScape.fsc.resume()
+               }
+            }
+
             pout.ar( flt )
          }
       }
@@ -488,20 +501,6 @@ object SoundProcesses {
             val sig          = (in * Lag.ar( pamp.ar, 0.1 )).outputs
             val inChannels   = sig.size
             val outChannels  = MASTER_NUMCHANNELS
-
-            if( FSCAPE_PAUSE ) {
-               val liveSecs = liveDur * 60
-               val imp0 = DC.kr( 1 )
-               TDelay.kr( imp0, ExpRand( liveSecs * 0.8, liveSecs * 0.9 )).react {
-                  println( "PAUSE FSCAPE" )
-                  FScape.fsc.pause()
-               }
-//               val remain = totalDur - liveDur
-               TDelay.kr( imp0, liveSecs + ExpRand( 50, 70 )).react {
-                  println( "RESUME FSCAPE" )
-                  FScape.fsc.resume()
-               }
-            }
 
             val sig1: GE     = List.tabulate( outChannels )( ch => sig( ch % inChannels ))
             val freq         = pfreq.kr
