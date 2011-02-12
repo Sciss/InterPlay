@@ -310,5 +310,11 @@ diffs:
 
 :::::
 
-! Extra Stromverteiler (mit Switch fuer Lampen)
-! Stromverlaengerung
+[OK]	Extra Stromverteiler (mit Switch fuer Lampen)
+[OK]	Stromverlaengerung
+[OK]	Power-Adapter mit Schuko
+[OK]	Extra Klinke-Kabel
+[OK]	Extra Unterlegscheiben
+[OK]	Plastik Transportkasten
+[OK]	Extra Eurokabel für BCF
+[OK]	Seitenschneider
