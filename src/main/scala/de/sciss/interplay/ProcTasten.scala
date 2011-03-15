@@ -49,8 +49,8 @@ object ProcTasten extends Process {
    val name    = "p-tast"
    val verbose = true
 
-   val MIN_WAIT      = 60.0
-   val MAX_WAIT      = 120.0
+   val MIN_WAIT      = 30.0 // 60.0
+   val MAX_WAIT      = 60.0 // 120.0
 //   val INIT_THRESH   = 0.5f
 
    val MIN_REENTRY   = 60.0

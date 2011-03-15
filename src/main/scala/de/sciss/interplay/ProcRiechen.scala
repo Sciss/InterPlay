@@ -49,8 +49,8 @@ object ProcRiechen extends Process {
 
 //   val MIN_WAIT            = 60.0
 //   val MAX_WAIT            = 120.0
-   val MIN_WAIT            = 120.0
-   val MAX_WAIT            = 180.0
+   val MIN_WAIT            = 60.0 // 120.0
+   val MAX_WAIT            = 90.0 // 180.0
 //val MIN_WAIT            = 10.0
 //val MAX_WAIT            = 10.0
 

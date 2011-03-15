@@ -44,8 +44,8 @@ import java.util.Locale
 object SoundProcesses {
    val ONSET_THRESH  = 0.5 // 0.3
    val diskBufSize   = 32768
-   val liveDur       = 3.0    // minutes
-   val totalDur      = 7.0 // 6.0    // minutes
+   val liveDur       = 1.5 // 3.0    // minutes
+   val totalDur      = 4.0 // 7.0 // 6.0    // minutes
 
 //   val LIVE_AMP_SPEC = ParamSpec( 0.1, 10, ExpWarp ) -> 0.5
    val LIVE_AMP_SPEC = ParamSpec( 0.0, 0.6, LinWarp ) -> 0.3333 // 0.25 // 0.3 // 0.3333
@@ -485,12 +485,12 @@ object SoundProcesses {
          graph { in =>
             val flt0 = {
                var eq: GE = in
-               eq = MidEQ.ar( eq, 382, 5.reciprocal, -3 )
-               eq = MidEQ.ar( eq, 706, 10.reciprocal, -3 )
-               eq = MidEQ.ar( eq, 799, 13.reciprocal, -3 )
-               eq = MidEQ.ar( eq, 929, 11.reciprocal, -6 )
-               eq = MidEQ.ar( eq, 1333, 8.reciprocal, -6 )
-               eq = BHiShelf.ar( eq, 5500, 1, 6 )
+//               eq = MidEQ.ar( eq, 382, 5.reciprocal, -3 )
+//               eq = MidEQ.ar( eq, 706, 10.reciprocal, -3 )
+//               eq = MidEQ.ar( eq, 799, 13.reciprocal, -3 )
+//               eq = MidEQ.ar( eq, 929, 11.reciprocal, -6 )
+//               eq = MidEQ.ar( eq, 1333, 8.reciprocal, -6 )
+//               eq = BHiShelf.ar( eq, 5500, 1, 6 )
                eq
             }
             def stage( in: GE ) = {

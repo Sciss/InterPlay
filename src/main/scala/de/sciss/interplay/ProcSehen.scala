@@ -54,8 +54,8 @@ object ProcSehen extends Process {
 //   val ANA_DUR       = 1.0
    val TEND_ANA_DUR  = tend( name + "ana_dur", Exp, 0.0 -> (1.0, 1.0), 0.9 -> (0.9, 1.1), 2.0 -> (0.5, 1.0) )
 
-   val MIN_WAIT      = 60.0
-   val MAX_WAIT      = 120.0
+   val MIN_WAIT      = 30.0 // 60.0
+   val MAX_WAIT      = 60.0 // 120.0
 //val MIN_WAIT      = 30.0
 //val MAX_WAIT      = 30.0
 
