@@ -44,18 +44,30 @@ object FScape {
 
    lazy val fsc = {
       val res = FScapeJobs()
+      res.connect() {
+         case false => println( "FScape failed to connect" )
+         case _ =>
+      }
       res.verbose = verbose
       res
    }
 
    lazy val fsc2 = {
       val res = FScapeJobs()
+      res.connect() {
+         case false => println( "FScape failed to connect" )
+         case _ =>
+      }
       res.verbose = verbose
       res
    }
 
    lazy val fsc3 = {
       val res = FScapeJobs()
+      res.connect() {
+         case false => println( "FScape failed to connect" )
+         case _ =>
+      }
       res.verbose = verbose
       res
    }

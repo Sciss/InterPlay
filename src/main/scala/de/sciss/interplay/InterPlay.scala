@@ -56,7 +56,7 @@ object InterPlay {
    val INTERNAL_AUDIO      = true
    val NUAGES_ANTIALIAS    = false
    val MASTER_OFFSET       = 2
-   val MASTER_NUMCHANNELS  = 6 // 5
+   val MASTER_NUMCHANNELS  = 2 // 6 // 5
    val SOLO_OFFSET         = 0
    val SOLO_NUMCHANNELS    = 2
    val SAMPLE_RATE         = 44100.0

@@ -113,7 +113,7 @@
     <orderEntry type="module-library">
       <library>
         <CLASSES>
-          <root url="jar://$MODULE_DIR$/lib_managed/scala_2.8.1/compile/fscapejobs_2.8.1-0.11.jar!/" />
+          <root url="jar://$MODULE_DIR$/lib_managed/scala_2.8.1/compile/fscapejobs_2.8.1-0.12.jar!/" />
         </CLASSES>
         <JAVADOC />
         <SOURCES />
