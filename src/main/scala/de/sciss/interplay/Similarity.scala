@@ -62,7 +62,8 @@ object Similarity {
    lazy val templates: IMap[ String, Template ] = TEMPLATE_PATH.listFiles( new FileFilter {
       def accept( f: File ) = try {
          val spec = AudioFile.readSpec( f )
-         spec.numChannels == anaClientBuf.numChannels
+//         spec.numChannels == anaClientBuf.numChannels
+         spec.numFrames == anaClientBuf.numChannels
       } catch { case _ => false }
    }).map( f => {
       val af   = AudioFile.openRead( f )
@@ -302,7 +303,11 @@ println( "framesWritten: " + numFrames )
       val mat = Mat( numFrames, anaClientBuf.numChannels )
       prepare( off, mat )
       val f = new File( TEMPLATE_PATH, name + ".aif" )
-      val af = AudioFile.openWrite( f, AudioFileSpec( numChannels = mat.numChannels, sampleRate = anaClientBuf.sampleRate ))
+
+      // note the unconventional layout -- each row (aka frame) in the matrix corresponds to a feature vector
+      // of size (mat.numChannels)
+      // ; thus in the AudioFile, each channel corresponds to a feature vector, to the timeline goes 'top down'
+      val af = AudioFile.openWrite( f, AudioFileSpec( numChannels = mat.numFrames, sampleRate = anaClientBuf.sampleRate ))
       af.writeFrames( mat.arr )
       af.close
    }

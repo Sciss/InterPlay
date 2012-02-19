@@ -190,7 +190,7 @@ object ProcGleichgewichten extends Process {
 
    private def minFlat( buf: Array[ Float ]) : Float = {
       var f0   = math.abs( buf( 0 ))
-      val n    = buf.size
+      val n    = buf.length
       var meas = 0.0f
       var i = 1; while( i < n ) {
          val f1 = math.abs( buf( i ))
@@ -201,21 +201,23 @@ object ProcGleichgewichten extends Process {
          }
          f0 = f1
       i += 1 }
-      meas / n
+      -meas / n   // large changes (low flatness) is punished
    }
 
+   // XXX TODO
    private def worstFlat( buf: Array[ Float ]) : Float = {
       var m = buf( 0 )
-      var i = 1; while( i < buf.size ) {
+      var i = 1; while( i < buf.length ) {
          val m1 = buf( i )
          if( m1 > m ) m = m1
       i += 1 }
       m
    }
 
+   // XXX TODO
    private def bestFlat( buf: Array[ Float ]) : Float = {
       var m = buf( 0 )
-      var i = 1; while( i < buf.size ) {
+      var i = 1; while( i < buf.length ) {
          val m1 = buf( i )
          if( m1 < m ) m = m1
       i += 1 }

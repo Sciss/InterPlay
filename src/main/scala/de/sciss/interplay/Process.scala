@@ -451,8 +451,10 @@ srcs.foreach { p =>
          if( resCnt < maxResults ) {
             res += Sample( idx, m )
             resCnt += 1
-         } else if( res.last.measure > m ) {
-            res = res.dropRight( 1 ) + Sample( idx, m )
+//         } else if( res.last.measure > m ) {
+         } else if( res.head.measure < m ) {
+//            res = res.dropRight( 1 ) + Sample( idx, m )
+            res = res.drop( 1 ) + Sample( idx, m )
          }
       }
 
@@ -501,8 +503,10 @@ srcs.foreach { p =>
          if( resCnt < maxResults ) {
             res += Sample( idx, m )
             resCnt += 1
-         } else if( res.last.measure > m ) {
-            res = res.dropRight( 1 ) + Sample( idx, m )
+//         } else if( res.last.measure > m ) {
+         } else if( res.head.measure < m ) {
+//            res = res.dropRight( 1 ) + Sample( idx, m )
+            res = res.drop( 1 ) + Sample( idx, m )
          }
       }
 
@@ -538,8 +542,11 @@ srcs.foreach { p =>
 
    private object Do { def apply( thunk: => Unit ) = new Do( thunk )}
    private class Do( thunk: => Unit ) { def perform = thunk }
+
+   // Ordering by measure
    case class Sample( idx: Int, measure: Float ) extends Ordered[ Sample ] {
-       def compare( that: Sample ) : Int = idx.compare( that.idx )
+//      def compare( that: Sample ) : Int = idx.compare( that.idx )
+       def compare( that: Sample ) : Int = Ordering.Float.compare( measure, that.measure )
    }
    private val sampleOrd = Ordering.ordered[ Sample ]
 
