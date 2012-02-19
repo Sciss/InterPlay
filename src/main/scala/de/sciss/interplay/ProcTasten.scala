@@ -94,7 +94,7 @@ object ProcTasten extends Process {
          playPath match {
             case Some( inPath ) => perform( temp, inPath )
             case None => {
-               stopThinking
+               stopThinking // should start re-entry? XXX
             }
          }
       }
@@ -110,7 +110,7 @@ object ProcTasten extends Process {
       informDir( "search result : " + res )
       if( res.nonEmpty ) {
          process( inPath, res )
-      } else atomic( name + " searchAnaDone empty" ) { implicit tx => stopThinking }
+      } else atomic( name + " searchAnaDone empty" ) { implicit tx => stopThinking } // should start re-entry? XXX
    }
 
    private def process( inPath: File, res: Iterable[ Sample ]) {

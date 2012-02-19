@@ -1,0 +1,186 @@
+live-dur: 3'
+totalDur: 7'
+
+Live
+  --> record buf (audio)
+  --> MFCC  --> feature buf (norm)
+  --> Onsets  --> marker list
+  
+Live -> FB Suppression + EQ -> Diffusion
+
+Outputs
+   All
+   Pan (random vector based panning rotations)
+   Rnd (random volume control movements per channel)
+   Master envelope (with slight boost around climax)
+
+Process.init
+--> initialises all of the following:
+all = List( ProcSehen, ProcHoeren, ProcRiechen, ProcSchmecken, ProcTasten, ProcOrientieren, ProcGleichgewichten, ProcKoerper )
+; and starts an idle actor
+
+each Process can be in three states:
+- idle
+- thinking (analysing, without producing any sound)
+- playing
+- sowie ein flag 'keepGoing'
+
+[$$$$$$$]
+ProcTasten = touch
+   * Uses predefined templates to match the live buffer against. Isolates little
+   * gestures of similarity to the templates and plays them back as one-shots.
+   - wait rrand 60 ... 120 seconds of live analysis data being ready
+   - choose one of the templates (pattern of spectral evolution)
+   - then searchAnalysisM( maxResults = 20, measure = Similarity.xcorr )
+       d.h. durchsuche den bisheringen live buffer nach den besten matches
+       bzgl. der template, basierend auf der kreuzkorrelation der MFCC
+   - nimmt jeweils ein kurzes stueck klang an den gefundenen stellen
+      (in der derzeitigen version der laenge 86 analyse-frames = 512 samples,
+       also 1 sekunde); die erste sekunde (// also bei dieser laenge alles) wird
+     rueckwaerts kopiert, dann der schnippsel anschliessend vorwaerts
+     drangehaengt; darauf wird FScape -> Bleach angewandt, und sobald
+    ein Schnippsel durchgelaufen ist, per 'inject' zurueckgespielt auf einem
+    einzelnen zufaelligen kanal.; dann mit exprand( 0.2, 1.5 )) verzoegerung
+    zu naechsten schnippsel.
+     ; sobald der erste Schnippsel fertig ist, wird in 'reentry' gesprungen
+     = wartet rrand 60 ... 90 sekunden and beginnt dann von neuem (da die analysen
+    dann weiter forgeschritten ist, bedeutet das, dass praktisch direkt zur
+    template auswahl gesprungen wird).
+
+   ; die templates sind: flageo, gliss, nupsi, papier, string, tasten
+	
+ProcSchmecken = taste
+  * Records part of the sum signal and runs it through FScape.
+  * At the moment this only uses Wavelet decomposition.
+  * Reacts to Gleichgewichten becoming active (as that results
+  * in nice repetitive patterns).
+    - uses tendency masks ([L] Truax 1988? / Koenig / Berg)
+    - init: listen to Gleichgewichten, and after it starts playing,
+       wait between ... ... ....
+  // spaeter aufbereiten, da dies nicht direkt mit der analyse verknuepft ist!
+	
+ProcRiechen = smell
+  * Inserts different cross-signal transformations into the path.
+  * At the moment this is a binary hilbert shifter.
+     d.h. es werden fuer alle master-channels zufaellige distinkte paare definiert:
+       (0 until MASTER_NUMCHANNELS) zip  scramble2( 0 until MASTER_NUMCHANNELS )
+        scramble2 : "Like scramble, but each item in the output is guaranteed to be _not_ at its original index"
+  // spaeter aufbereiten, da dies nicht direkt mit der analyse verknuepft ist!
+	
+[$$$$$$$]
+ProcSehen = sight
+  * Picks up the current spectral and temporal pattern from the sum signal,
+  * and measures the similarity in the live buffer. Uses FScape's DrMurke
+  * to sort out similar sounds which are the re-injected.
+   - init: wait rrand 60 ... 120 secs (of live analysis data being ready)
+     - bricht ab, wenn 'logical time' >= 1.7
+     (logical time: 0.0 bis 1.0 fuer den live part, und 1.0 - 2.0 fuer den zweiten teil)
+      - andernfalls... im live part?
+             ---> ja:     val liveProb   = TEND_LIVE_PROB.decide ; 66% @ 0 --> 33% @ 1
+              		 val intProb    = TEND_INT_PROB.decide     ; 17% @ 0 --> 33% @ 1
+                            (implicit 'all'   = 1 - (live + int)                    also  ; 17% @ 0 --> 33% @ 1
+                      waehle gemaess diesen wahrscheinlichkeiten den eingriffspunkt
+                      live = microphon signal
+                      int   = interner sammelpunkt (benutzt in 'addTail')
+                      all   = hinter 'int' ; d.h. wenn hier 'gespielt wird' besteht keine gefahr,
+                           dass der prozess von einem anderen verdeckt wird (was bei int passieren kann)
+                   ---> ist signal an diesem punkt?
+                             ---> ja? 'replaceTail' an diesem punkt mit analyse filter
+                                       = MFCC von mono summe
+                                   val anaFrames  = (TEND_ANA_DUR.decide...)
+                                                   ; 1 sec @ 0 --> exp 0.9 bis 1.1 sec @ 0.9 --> exp 0.5 bis 1.0 sec @ 2.0
+                                 ; rentry nach 100% der reentry zeit
+                           ---> nein? reentry nach 10% der reentry zeit
+            ----> nein:  analyse diff wird hinter all eingefuegt (also 'von aussen' sozusagen)
+                                 ; rentry nach 100% der reentry zeit
+
+               reentry dauer ist TEND_REENTRY : 60 bis 90 sec @ 0 --> ebenso @ 1 --> 20 bis 74 sec @ 1.6, danach '9999' (niemehr)
+
+      processAnalysis: maxResults = 1, measure = xcorr; 
+                  ;  ausserdem wird die mittlere xcorr ueber den gesamten verfuegbaren live-buffer berechnet
+                  ; dann Murke auf live copy:
+                  up-threshold = TEND_THRESH  : 0.5 bis 1.0 @ 0 --> dito @ 1.4 --> 0.5 bis 3.0 @ 2.0
+                    (wird mit diesem mittleren xcorr wert multipliziert; d.h. bei generell schlechterer korrelation wird der threshold
+                      abgesenkt). 
+                  down-threshold = up-threshold * hysterese
+			TEND_HYST: 60 - 80% @ 0 --> dito @ 1.5 --sin--> 60 bis 95% @ 2.0
+                            mode = "up", durUp = "0.1s", durDown = "0.1s", attack = "0.01s", release = "1.0s", spacing = Some( "0s" )
+                   ; wenn fertig: inject : 
+                           pan-diffusion( spread = rrand( 0.25, 1.0 ); rota = 1; azi = rand; speed = exprand( 1.0 / 20, 1.0 / 10 )
+                           playback speed = TEND_SPEED: 1x @ 0 -> exp 0.5x...1x @ 1 -> exp 0.25x ... 1x @ 2
+ 
+        - ausserdem bei 'stopped' werden die aktuellen klaenge gemaess exp 20 ... 30 sec mit hilfe eines HPF ausgeblendet
+             // wann wird stop aufgerufen? vermutlich nur als Process.stopAll am ende der totalDur ?
+
+	
+[$$$$$$$]
+ProcHoeren = hearing
+  * Listens to individual channels, and when they stay too quiet after a climax,
+  * injects material from the live buffer around detected attacks. Tries to
+  * sync with attacks on other channels.
+   - init: wartet auf ende des live teils
+        dann setzt analyse synth nach collAll (also 'von aussen') fuer die dauer von
+            TEND_STICKY : Lin, 0.0 -> (10.0, 10.0), 1.0 -> (10.0, 10.0), 2.0 -> (7.0, 20.0) )
+               (also 10 sekunden dann am schluss zufaellig 7 bis 20 sekunden)
+        pro kanal: Loudness.kr, geglaettet
+        ; faellt loudness unter einen threshold, wird mit einer verzoegerung ein trigger ausgeloest
+          (ebenfalls pro kanal)
+          // verzoegerung scheint fest auf 3.0 sekunden zu sein, und threshold fest of 6 sone
+	// (TEND_THRESH nicht verwendet)
+       
+        ; am ende des ana synths wird reentry ausgeloest
+          (TEND_REENTRY Lin, 0.0 -> (10.0, 10.0), 1.0 -> (10.0, 10.0), 2.0 -> (7.0, 10.0) )
+
+       - trigger: wenn bereits ein ausgeloester klang auf dem jeweiligen kanal spielt --> return
+         andernfalls suche einen zufaellen onset marker im live buffer; waehle den schnippsel
+          zwischen diesem onset und dem naechsten. und bestimme die dauer, die jedoch
+         mind. MIN_DUR = 1.0 und hoechsten MAX_DUR = 60.0 betragen darf.
+         ; ausserdem wird ein stilles pre-delay gemaess
+               TEND_GENDELAY: Lin, 0.0 -> (0.0, 3.0), 1.0 -> (0.0, 3.0), 2.0 -> (0.0, 3.0 * 0.1) )
+         bestimmt, so dass der klang verzoegert zu hoeren ist.
+       ; abspielgeschw. gemaess TEND_SPEED: Exp, 0.0 -> (1.0, 1.0), 1.0 -> (1.0, 1.0), (2.0, (0.25, 1.0), 'sin) )
+       ; abspielen mit addTail (also p ~> collInt)
+
+		
+[$$$$$$$]
+ProcGleichgewichten = equilibrioception
+   * Searches for steady flat (noisy / little resonance) spectra,
+   * plays short loops back directly from the buffer
+     - init: wait for analysis rrand 25.0 ... 40.0 sec
+         // steady ist the gescannte dauer (sliding window size) in sekunden
+         // ; das entspricht der abspieldauer (bzw. dur  = exprand( steadyLo, steady ))
+         val (steady, steadyLo, steadyHi) = TEND_STEADY.decideWithBounds
+                           ; 0.0 -> (1.0, 2.0), 1.0 -> (1.5, 3.0), 2.0 -> (1.0, 3.5) )
+               algo = algos( TEND_ALGO.decideInt )
+                         ; nur #0 @ 0 --> #0 @ 1 --> nur #1 @ 2
+                     ; algos = Array( worstFlat( _ ), bestFlat( _ )) ; d.h. im live teil nur worstFlat, dann nach und nach zu bestFlat
+            : suche bis zu master_numchannels + zahl vorheriger ergebnisse
+	   : aber entferne alle gefundenen vorherigen punkte wenn ergebnis-groesse > master_numchannels
+             frameMeasure = minFlat( _ ); integMeasure = algo
+             // ist die frage of 'flache' MFCC irgendeine bestimmte bedeutung haben??
+             // (sollten test-run machen)
+
+    - abspiel-speed gemaess TEND_SPEED: Exp, 0.0 -> (1.0, 1.0), 1.0 -> (0.9715, 1.0293), (2.0, (0.5, 1.0), 'welch) )
+    - expander ratio: TEND_COMP: Exp, 0.0 -> (1.2, 1.3), 1.0 -> (1.8, 2.2), 1.5 -> (3.0, 3.0), 2.0 -> (1.5, 1.5) )
+     - jeweils ein loop wird auf jedem kanal gespielt
+     - dauer des loop playback gemaess TEND_PLAY: Exp, 0.0 -> (45.0, 70.0), 0.9 -> (40.0, 50.0), 2.0 -> (35.0, 50.0) )
+            ; dann werden alle loops mit verschiedenen fade out zeiten (TEND_FADE) ausgeblendet und gestoppt
+    - nach starten des abspielens beginnt reentry mit
+                TEND_REENTRY : Exp, 0.0 -> (90.0, 135.0), 0.9 -> (90.0, 120.0), 1.5 -> (60.0, 60.0), 1.6 -> (999.9, 999.9) )
+	
+ProcOrientieren = proprioception
+  * Inserts a transformation which is a time-varying delay, creating
+  * different glissandi across channels.
+	  // spaeter aufbereiten, da dies nicht direkt mit der analyse verknuepft ist!
+
+
+ProcKoerper = ??? (body)
+   - init: 1 sec nach live start beginnt warten gemaess rrand( MIN_WAIT, MAX_WAIT )
+      MIN_WAIT = 40% der live dur; MAX_WAIT = MIN_WAIT, hmm.....
+ ; dann wird ein aufnahme proc gestartet fuer die dauer exprand 45 ... 60 sec
+  ; und zwar in zwei durchgaengen (first rec / second rec)
+  ; mit den ergebnissen wird FScape Bleach + Convolve durchgefuehrt
+  ; val numIRs = (dur / 5 + 0.5).toInt ; d.h. morph convolution mit 2 sekunden IR dauer
+     ; normIRs, aber nicht minPhase
+   ; das ergebnis wird mit wrap-index auf alle kanaele gegeben (aufnahmen haben sowieso MASTER_NUMCHANNELS kanaele), 
+    wobei eine verschiebung um MASTER_NUMCHANNELS / 2 erfolgt.
