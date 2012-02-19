@@ -12,3 +12,39 @@ Sun Feb 19 18:23:51 GMT 2012 p-tast : search result : papier -> TreeSet(Sample(1
 Sun Feb 19 18:20:53 GMT 2012 p-tast : search result : string -> 
 List(4315648, 4316672, 4316160, 4317184, 4322304, 1138176, 1141760, 4317696, 1143296, 4318720, 4318208, 4319232, 4319744, 4321792, 4320256, 4320768, 4321280, 1142272, 1142784)
 
+
+::::::::
+
+def saveTemp( name: String, start: Long, stop: Long ) {
+   val startF = (start/512).toInt
+   val stopF  = (stop/512).toInt
+   Similarity.saveTemplate( startF, stopF - startF, name )
+}
+
+
+saveTemp( "fl1", 47217, 69503 )
+saveTemp( "fl2", 115862, 137470 )
+saveTemp( "fl3", 171592, 209308 )
+saveTemp( "fl4", 279557, 300108 )
+saveTemp( "fl5", 358628, 378695 )
+saveTemp( "knock1", 419916, 441434 )
+saveTemp( "knock2", 522728, 542795 )
+saveTemp( "knock3", 579423, 602149 )
+saveTemp( "pedal1", 665312, 689972 )
+saveTemp( "pedal2", 732618, 748091 )
+saveTemp( "nupsi1", 750870, 769729 )
+saveTemp( "keys1", 798136, 810950 )
+saveTemp( "keys2", 825698, 838753 )
+saveTemp( "keys3", 846610, 858698 )
+saveTemp( "papier1", 874653, 905782 )
+saveTemp( "papier2", 962874, 988985 )
+saveTemp( "papier3", 998292, 1016183 )
+saveTemp( "knock4", 1025007, 1034920 )
+saveTemp( "knock5", 1040420, 1055652 )
+saveTemp( "slide1", 1065315, 1095052 )
+saveTemp( "slide2", 1149705, 1172432 )
+saveTemp( "slide3", 1196677, 1216502 )
+saveTemp( "pluck1", 1230403, 1241917 )
+saveTemp( "nails1", 1264322, 1296236 )
+saveTemp( "nails2", 1361556, 1390810 )
+saveTemp( "keys4", 1436240, 1459692 )

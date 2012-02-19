@@ -67,7 +67,7 @@ object Similarity {
       } catch { case _ => false }
    }).map( f => {
       val af   = AudioFile.openRead( f )
-      val mat  = Mat( af.numFrames.toInt, anaClientBuf.numChannels )
+      val mat  = Mat( af.numChannels, anaClientBuf.numChannels )
       af.readFrames( mat.arr )
       af.close
       val name0= f.getName()

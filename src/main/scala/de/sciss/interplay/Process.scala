@@ -438,23 +438,33 @@ srcs.foreach { p =>
                              integMeasure: Array[ Float ] => Float, rotateBuf: Boolean = false )
                            ( fun: ISortedSet[ Sample ] => Unit ) {
       val frameInteg = secsToFrames( timeInteg )
+      val minSpc     = frameInteg/2;
       val buf        = anaClientBuf
       val chanBuf    = new Array[ Float ]( buf.numChannels )
       val timeBuf    = new Array[ Float ]( frameInteg )
       val numFrames  = buf.framesWritten - frameInteg + 1
       var res        = ISortedSet.empty[ Sample ]( sampleOrd )
       var resCnt     = 0
+      var lastSample = Sample( -frameInteg, 0f )
       informDir( "searchAnalysis started " + frameInteg + " / " + numFrames )
 
       def karlheinz( idx: Int ) {
          val m = integMeasure( timeBuf )
-         if( resCnt < maxResults ) {
-            res += Sample( idx, m )
+         val newSample = Sample( idx, m )
+         if( idx - lastSample.idx < minSpc ) {
+            if( lastSample.measure < m ) { // new sample is better
+               res = res - lastSample + newSample
+               lastSample = newSample
+            } // else ignore new sample
+         } else if( resCnt < maxResults ) {
+            res += newSample
+            lastSample = newSample
             resCnt += 1
 //         } else if( res.last.measure > m ) {
          } else if( res.head.measure < m ) {
 //            res = res.dropRight( 1 ) + Sample( idx, m )
-            res = res.drop( 1 ) + Sample( idx, m )
+            res = res.drop( 1 ) + newSample
+            lastSample = newSample
          }
       }
 
@@ -489,6 +499,9 @@ srcs.foreach { p =>
    private def actSearchAnaM( frameInteg: Int, maxResults: Int = 20, measure: Similarity.Mat => Float )
                             ( fun: ISortedSet[ Sample ] => Unit, rotateBuf: Boolean = false ) {
       informDir( "searchAnalysisM started" )
+
+      val minSpc     = frameInteg/2;
+
       val buf        = anaClientBuf
       val numChannels= buf.numChannels
 //         val frames     = Array.ofDim[ Float ]( frameInteg, numChannels )
@@ -497,16 +510,25 @@ srcs.foreach { p =>
       var res        = ISortedSet.empty[ Sample ]( sampleOrd )
       var resCnt     = 0
       val frameIntegM= frameInteg - 1
+      var lastSample = Sample( -frameInteg, 0f )
 
       def karlheinz( idx: Int ) {
          val m = measure( frames )
-         if( resCnt < maxResults ) {
-            res += Sample( idx, m )
+         val newSample = Sample( idx, m )
+         if( idx - lastSample.idx < minSpc ) {
+            if( lastSample.measure < m ) { // new sample is better
+               res = res - lastSample + newSample
+               lastSample = newSample
+            } // else ignore new sample
+         } else if( resCnt < maxResults ) {
+            res += newSample
+            lastSample = newSample
             resCnt += 1
 //         } else if( res.last.measure > m ) {
          } else if( res.head.measure < m ) {
 //            res = res.dropRight( 1 ) + Sample( idx, m )
-            res = res.drop( 1 ) + Sample( idx, m )
+            res = res.drop( 1 ) + newSample
+            lastSample = newSample
          }
       }
 
