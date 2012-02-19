@@ -535,6 +535,7 @@ srcs.foreach { p =>
       if( numFrames > 0 ) {
          var x = 0; while( x < frameInteg ) {
             buf.getFrame( 0, frames.arr( x ))
+            frames.dirty()
          x += 1 }
          karlheinz( 0 )
       }
@@ -553,6 +554,7 @@ srcs.foreach { p =>
          } else {
             buf.getFrame( off, frames.arr( (off - 1) % frameInteg ))
          }
+         frames.dirty()
          karlheinz( off )
       off += 1 }
 

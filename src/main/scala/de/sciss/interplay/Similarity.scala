@@ -235,6 +235,7 @@ println( "framesWritten: " + numFrames )
       var idx = off; var x = 0; while( x < mat.numFrames ) {
          anaClientBuf.getFrame( idx, mat.arr( x ))
       x += 1; idx += 1 }
+      mat.dirty()
    }
 
    private def stat( mat: Mat ) : (Double, Double) = {
@@ -275,16 +276,32 @@ println( "framesWritten: " + numFrames )
       norm( mat )
    }
 
+//   def xcorr( a: Similarity.Mat )( b: Similarity.Mat ) : Float = {
+//      var sum = 0.0
+//      var x = 0; while( x < a.numFrames ) {
+//         val af = a.arr( x )
+//         val df = b.arr( x )
+//         var y = 0; while( y < a.numChannels ) {
+//            sum += af( y ) * df( y )
+//         y += 1 }
+//      x += 1 }
+//      (sum / (a.size - 1)).toFloat
+//   }
+
    def xcorr( a: Similarity.Mat )( b: Similarity.Mat ) : Float = {
       var sum = 0.0
+      val aAdd = -a.mean
+      val bAdd = -b.mean
       var x = 0; while( x < a.numFrames ) {
          val af = a.arr( x )
          val df = b.arr( x )
          var y = 0; while( y < a.numChannels ) {
+            sum += (af( y ) + aAdd) * (df( y ) + bAdd)
             sum += af( y ) * df( y )
          y += 1 }
       x += 1 }
-      (sum / (a.size - 1)).toFloat
+      val div = (a.stdDev * b.stdDev * a.size - 1)
+      if( div > 0 ) (sum / div).toFloat else 0f
    }
 
 //   private def xcorr( a: Mat, b: Mat ) : Double = {
@@ -320,6 +337,29 @@ println( "framesWritten: " + numFrames )
    }
    case class Mat( arr: Array[ Array[ Float ]], numFrames: Int, numChannels: Int ) {
       val size = numFrames * numChannels
+
+      private var dirtyFlag = true
+      def dirty() { dirtyFlag = true }
+
+      private var meanVar = 0.0
+      private var stdDevVar = 0.0
+
+      def mean: Double = {
+         if( dirtyFlag ) clean()
+         meanVar
+      }
+
+      def stdDev: Double = {
+         if( dirtyFlag ) clean()
+         stdDevVar
+      }
+
+      private def clean() {
+         val (m, d) = stat( this )
+         meanVar     = m
+         stdDevVar   = d
+         dirtyFlag   = false
+      }
    }
 
    case class Template( name: String, mat: Mat )
