@@ -360,7 +360,10 @@ object SoundProcesses {
 
       collInt = filtThru.make
       collAll = factCollAll.make // diffThru.make
-      val dummy = (gen( "dummy" ) { graph { Silent.ar( MASTER_NUMCHANNELS )}}).make
+      val dummy = (gen( "dummy" ) { graph {
+//        Silent.ar( MASTER_NUMCHANNELS )
+        DC.ar( Seq.fill( MASTER_NUMCHANNELS )( 0 ))
+      }}).make
       dummy ~> collInt ~> collAll
       ProcessHelper.playNewDiff( collAll, postFun = dummy.dispose( _ )) // dummy needed to get the input channel :-(
 

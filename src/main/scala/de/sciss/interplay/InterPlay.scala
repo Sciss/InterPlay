@@ -76,7 +76,7 @@ object InterPlay {
    val USE_MIDI            = true
    val AUTO_RECORD         = true
 
-   var LIVE_FILE           = None // Some( "live110206_201606.irc" )   // Some( "live110204_210950.irc" ) // Some( "live110131_214418.irc" ) // Some( "live110125_143645.irc" ) // Some( "live110128_113557.irc" ) // Some( "live110128_121639.irc" )
+   var LIVE_FILE           = Some( "live110211_190439.aif" ) // Some( "live110206_201606.irc" )   // Some( "live110204_210950.irc" ) // Some( "live110131_214418.irc" ) // Some( "live110125_143645.irc" ) // Some( "live110128_113557.irc" ) // Some( "live110128_121639.irc" )
    val LIVE_MODE           = if( LIVE_FILE.isDefined ) 1 else 0
 
    val INITIAL_MASTER_VOLUME  = 2.0 // 1.75
@@ -106,6 +106,9 @@ object InterPlay {
          REC_CHANGROUPS.map( g => g._2 + g._3 )).max
 
 //      println( "MAX IN " + maxInIdx + " ; MAX OUT " + maxOutIdx )
+
+      // SC 3.5 breaks several things: Silent and LinLin UGens have gone!
+      o.programPath        = "/Applications/SuperCollider_3.4.4/scsynth"
 
       o.inputBusChannels   = maxInIdx // 10
       o.outputBusChannels  = maxOutIdx // 10

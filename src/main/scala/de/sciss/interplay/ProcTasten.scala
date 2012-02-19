@@ -103,11 +103,11 @@ object ProcTasten extends Process {
    def perform( temp: Similarity.Template, inPath: File )( implicit tx: ProcTxn ) {
       searchAnalysisM( frameInteg = temp.mat.numFrames,
                        maxResults = 20,
-                       measure = Similarity.xcorr( temp.mat )( _ ))( searchAnaDone( inPath, _ ))
+                       measure = Similarity.xcorr( temp.mat )( _ ))( searchAnaDone( inPath, temp.name, _ ))
    }
 
-   private def searchAnaDone( inPath: File, res: Iterable[ Sample ]) {
-      informDir( "search result : " + res )
+   private def searchAnaDone( inPath: File, tempName: String, res: Iterable[ Sample ]) {
+      informDir( "search result : " + tempName + " -> " + res )
       if( res.nonEmpty ) {
          process( inPath, res )
       } else atomic( name + " searchAnaDone empty" ) { implicit tx => stopThinking } // should start re-entry? XXX

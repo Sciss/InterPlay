@@ -119,17 +119,19 @@ extends JComponent {
 
       val x0 = startFrame / downSmp
       val x1 = (stopFrame + downSmp - 1) / downSmp
+      val imgH = buf.numChannels
       var x = x0; var frame = x0 * downSmp; while( frame < stopFrame ) {
          buf.getFrame( frame, sum )
          frame += 1
          var i = 1; while( i < downSmp && frame < stopFrame ) {
             buf.getFrame( frame, tmp )
-            var y = 0; while( y < buf.numChannels ) {
+            var y = 0; while( y < imgH ) {
                sum( y ) += tmp( y )
             y += 1 }
          i += 1; frame += 1 }
          var y = 0; while( y < buf.numChannels ) {
-            img.setRGB( x, y, IntensityColorScheme( sum( y ) / downSmp ))
+//            img.setRGB( x, y, IntensityColorScheme( sum( y ) / downSmp ))
+            img.setRGB( x, imgH - 1 - y, IntensityColorScheme( sum( y ) / downSmp ))
          y += 1 }
       x += 1 }
 
