@@ -320,8 +320,8 @@ object ProcSehen extends Process {
    }
 
    private def inject( path: String )( implicit tx: ProcTxn ) {
-      inform( "inject" )
       val spec = audioFileSpec( path )
+      inform( "inject " + spec.numFrames )
 //      val d = factory( "O-all" ).make       // XXX should use different spats
       val d = factory( "O-pan" ).make
       val spread = rrand( 0.25, 1.0 )
