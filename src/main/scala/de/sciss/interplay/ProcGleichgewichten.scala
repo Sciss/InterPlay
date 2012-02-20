@@ -204,7 +204,6 @@ object ProcGleichgewichten extends Process {
       -meas / n   // large changes (low flatness) is punished
    }
 
-   // XXX TODO
    private def worstFlat( buf: Array[ Float ]) : Float = {
       var m = buf( 0 )
       var i = 1; while( i < buf.length ) {
@@ -214,7 +213,6 @@ object ProcGleichgewichten extends Process {
       m
    }
 
-   // XXX TODO
    private def bestFlat( buf: Array[ Float ]) : Float = {
       var m = buf( 0 )
       var i = 1; while( i < buf.length ) {

@@ -156,7 +156,7 @@ object ProcSchmecken extends Process {
       }
 
       val ok = funkyShit
-      inform( "starting analysis" + ok )
+      inform( "starting analysis " + ok )
       if( ok ) {
          startPlaying    // XXX stopPlaying missing
          for( n <- 1 until KONVUL_NUM.decideOrElse( 1 )) {
@@ -172,7 +172,7 @@ object ProcSchmecken extends Process {
    }
 
    private def makeDemDelay( t: Double )( implicit tx: ProcTxn ) {
-      inform( "delay for" + t + "s" )
+      inform( "delay for " + t + "s" )
       delay( t )( spawnAtomic( name + " delay done" )( delayDone( _ )))
    }
 }

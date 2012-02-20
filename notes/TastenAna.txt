@@ -48,3 +48,73 @@ saveTemp( "pluck1", 1230403, 1241917 )
 saveTemp( "nails1", 1264322, 1296236 )
 saveTemp( "nails2", 1361556, 1390810 )
 saveTemp( "keys4", 1436240, 1459692 )
+
+Sun Feb 19 20:27:00 GMT 2012 started
+
+Sun Feb 19 20:28:48 GMT 2012 p-tast : search result : keys2 -> TreeSet(Sample(2792,0.78714365), Sample(2069,0.79051006), Sample(401,0.8085736), Sample(27,0.8320066), Sample(41,0.85198885), Sample(1478,0.855199), Sample(149,0.87995744), Sample(4724,0.88284343), Sample(674,0.9070836), Sample(1755,0.92236423), Sample(687,0.933772), Sample(2592,0.9418969), Sample(1897,0.94443405), Sample(2055,0.9455045), Sample(4776,0.947181), Sample(2557,0.9526471), Sample(2521,0.96087724), Sample(2579,0.98538244), Sample(2539,1.0230536), Sample(2042,1.0777067))
+
+Sun Feb 19 20:30:35 GMT 2012 p-tast : search result : knock4 -> TreeSet(Sample(11490,0.6890859), Sample(8003,0.6958193), Sample(11480,0.6990443), Sample(7993,0.7036986), Sample(8809,0.7043995), Sample(11044,0.7075314), Sample(530,0.70935076), Sample(8828,0.70964193), Sample(7824,0.7264858), Sample(7784,0.73295546), Sample(7814,0.7548992), Sample(764,0.7612406), Sample(8510,0.77041674), Sample(9264,0.7792141), Sample(7774,0.79189163), Sample(8250,0.80464435), Sample(7982,0.8071235), Sample(1045,0.81125355), Sample(9349,0.83326674), Sample(9337,0.8413058))
+
+Sun Feb 19 20:31:58 GMT 2012 p-tast : search result : papier3 -> TreeSet(Sample(9016,0.59091604), Sample(9220,0.60484964), Sample(654,0.6072222), Sample(9162,0.6132355), Sample(14268,0.62110794), Sample(14220,0.624492), Sample(8493,0.6492712), Sample(5072,0.6594274), Sample(8642,0.69510794), Sample(8862,0.7075617), Sample(8999,0.7278258), Sample(14315,0.7296469), Sample(9145,0.74377626), Sample(4690,0.7609903), Sample(8808,0.8354956), Sample(4670,0.8383984), Sample(5040,0.8580977), Sample(9128,0.8585265), Sample(5013,0.8638988), Sample(8845,0.87232155))
+
+Sun Feb 19 20:33:37 GMT 2012 p-tast : search result : knock1 -> TreeSet(Sample(9835,0.8597226), Sample(4158,0.86253536), Sample(1429,0.8731448), Sample(4291,0.88848615), Sample(9705,0.893648), Sample(1298,0.9064621), Sample(2319,0.91274804), Sample(2801,0.9132018), Sample(2136,0.91675156), Sample(5115,0.94747066), Sample(2115,0.9493955), Sample(2554,0.959938), Sample(12032,0.9670967), Sample(1477,0.97258425), Sample(4270,0.973756), Sample(11944,1.0002891), Sample(2083,1.0042653), Sample(2533,1.0574384), Sample(2058,1.1253322), Sample(2780,1.1538326))
+
+
+::::::::::::::::::::::::::::::::::::::::::::::
+
+p-seh
+
+Mon Feb 20 00:15:54 GMT 2012 p-seh : inject 5186641
+Mon Feb 20 00:17:10 GMT 2012 p-seh : inject 7297136
+Mon Feb 20 00:18:31 GMT 2012 p-seh : inject 4960466
+
+
+Mon Feb 20 01:04:32 GMT 2012 p-seh : ready for murke. up =  2.8252974231883567, dn = 1.8332722697198867, mean = 12.06632018807536
+Mon Feb 20 01:05:45 GMT 2012 p-seh : ready for murke. up =  4.35084381083069,   dn = 2.8206792378249266, mean = 21.546330776659403
+Mon Feb 20 01:06:49 GMT 2012 p-seh : ready for murke. up =  4.157491494433875,  dn = 2.8095317530331494, mean = 26.10889468748461
+Mon Feb 20 01:08:11 GMT 2012 p-seh : ready for murke. up =  2.979915117737278,  dn = 2.217224570413361,  mean = 22.433317191898823
+
+:::
+
+Mon Feb 20 01:20:03 GMT 2012 p-seh : ready for murke. up =  33.39490422036731, dn = 25.54018429323637, sum = 284875.2005672455; numAna = 6050
+
+:::::
+
+Mon Feb 20 02:42:16 GMT 2012 p-seh : ready for murke. up =  0.29249744954308565, dn = 0.19488032823088117
+cp /var/folders/M9/M9W+ucwpFzaqGpC2mu3KZq0sUCc/-Tmp-/tmp2895972094079294328.aif .
+cp /var/folders/M9/M9W+ucwpFzaqGpC2mu3KZq0sUCc/-Tmp-/fsc5716983896973254637.aif .
+Mon Feb 20 02:42:18 GMT 2012 p-seh : inject 2993461
+
+Mon Feb 20 02:43:20 GMT 2012 p-seh : ready for murke. up =  0.26946904017058776, dn = 0.19448359958813544
+cp /var/folders/M9/M9W+ucwpFzaqGpC2mu3KZq0sUCc/-Tmp-/tmp1641961515575581383.aif .
+cp /var/folders/M9/M9W+ucwpFzaqGpC2mu3KZq0sUCc/-Tmp-/fsc8501518022288694935.aif .
+Mon Feb 20 02:43:23 GMT 2012 p-seh : inject 1758943
+
+Mon Feb 20 02:44:44 GMT 2012 p-seh : ready for murke. up =  0.18215304531335486, dn = 0.12924555750339234
+cp /var/folders/M9/M9W+ucwpFzaqGpC2mu3KZq0sUCc/-Tmp-/tmp8857983961591890325.aif .
+cp /var/folders/M9/M9W+ucwpFzaqGpC2mu3KZq0sUCc/-Tmp-/fsc570661895882646682.aif .
+Mon Feb 20 02:44:45 GMT 2012 p-hoeren : dang 0
+Mon Feb 20 02:44:45 GMT 2012 p-hoeren : dang 1
+Mon Feb 20 02:44:46 GMT 2012 : FScape : Warning - [0] ERROR (FScapeJobs -- java.nio.BufferUnderflowException : null)
+Mon Feb 20 02:44:46 GMT 2012 p-seh : murke done false
+Mon Feb 20 02:44:46 GMT 2012 p-seh : FScape failure!
+
+Mon Feb 20 02:44:54 GMT 2012 p-seh : ready for murke. up =  0.27544264245070205, dn = 0.17450054268848525
+cp /var/folders/M9/M9W+ucwpFzaqGpC2mu3KZq0sUCc/-Tmp-/tmp6065531472159474758.aif .
+cp /var/folders/M9/M9W+ucwpFzaqGpC2mu3KZq0sUCc/-Tmp-/fsc2037961906239759863.aif .
+Mon Feb 20 02:44:55 GMT 2012 p-seh : inject 1542587
+
+Mon Feb 20 02:45:19 GMT 2012 p-seh : ready for murke. up =  0.5797049494335077, dn = 0.4186164960020038
+Mon Feb 20 02:45:22 GMT 2012 p-riech : Re-entry
+Mon Feb 20 02:45:23 GMT 2012 p-seh : murke done true
+Mon Feb 20 02:45:23 GMT 2012 p-seh : reentry after 3.7895233154296877s
+
+Mon Feb 20 02:45:35 GMT 2012 p-seh : ready for murke. up =  0.2248957680397088, dn = 0.15079803703094774
+cp /var/folders/M9/M9W+ucwpFzaqGpC2mu3KZq0sUCc/-Tmp-/tmp7408258267667548015.aif .
+cp /var/folders/M9/M9W+ucwpFzaqGpC2mu3KZq0sUCc/-Tmp-/fsc8226093030497759039.aif .
+Mon Feb 20 02:45:36 GMT 2012 p-seh : inject 303090
+
+Mon Feb 20 02:45:51 GMT 2012 p-seh : ready for murke. up =  0.2949932438762415, dn = 0.21849636342564532
+cp /var/folders/M9/M9W+ucwpFzaqGpC2mu3KZq0sUCc/-Tmp-/tmp6170983070253318575.aif .
+cp /var/folders/M9/M9W+ucwpFzaqGpC2mu3KZq0sUCc/-Tmp-/fsc3975618932261329121.aif .
+Mon Feb 20 02:45:52 GMT 2012 p-seh : inject 210401

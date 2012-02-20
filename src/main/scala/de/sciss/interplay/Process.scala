@@ -31,12 +31,11 @@ package de.sciss.interplay
 import InterPlay._
 import SoundProcesses._
 import de.sciss.synth.Model
-import collection.immutable.{IndexedSeq => IIdxSeq, Set => ISet, SortedSet => ISortedSet}
+import collection.immutable.{Set => ISet, SortedSet => ISortedSet}
 import actors.Actor
 import java.util.{TimerTask, Timer}
 import de.sciss.synth.io.AudioFile
 import java.io.IOException
-import edu.stanford.ppl.ccstm.Txn
 import de.sciss.synth.proc.{ProcDemiurg, DSL, Proc, TxnModel, Ref, ProcTxn}
 import DSL._
 
@@ -46,15 +45,15 @@ object Process {
 //   val all = List( ProcRiechen )
 //   val all = List( ProcHoeren )
 
-   private val actor = new Actor { def act = loop { react {
+   private val actor = new Actor { def act { loop { react {
       case d: Do => try {
-         d.perform
+         d.perform()
       } catch {
          case e =>
             println( "Caught exception in actor:" )
             e.printStackTrace()
       }
-   }}}
+   }}}}
 
    sealed trait ReplacePoint
    case object ReplaceInternal extends ReplacePoint
@@ -62,7 +61,7 @@ object Process {
    case object ReplaceAll      extends ReplacePoint
 
    def init( implicit tx: ProcTxn ) {
-      actor.start  // save to call repeatedly, so no prob with tx rollback
+      actor.start()  // save to call repeatedly, so no prob with tx rollback
       all.foreach( _.init )
    }
 
@@ -85,7 +84,7 @@ object Process {
    def delay( dur: Double )( thunk: => Unit )( implicit tx: ProcTxn ) /* : TimerTask = */ {
       afterCommit( tx ) {
          val res = new TimerTask {
-            def run = thunk
+            def run() { thunk }
          }
          val timer = delayTimer // val timer = new Timer( true )
          timer.schedule( res, (dur * 1000).toLong )
@@ -327,7 +326,7 @@ srcs.foreach { p =>
    private def blockWithTimeOut[ Z ]( info: => String, block: ProcTxn => Z, tx: ProcTxn ) : Z = {
       val timeOut = new java.util.Timer( true )
       timeOut.schedule( new TimerTask {
-         def run {
+         def run() {
             informDir( "Timeout for " + info, force = true )
          }
       }, 4000L )
@@ -359,13 +358,13 @@ srcs.foreach { p =>
       println( timeString() + " " + what )
    }
 
-   private def inform( what: => String, force: Boolean = false )( implicit tx: ProcTxn ) = if( verbose || force ) {
-      doInform( "Process : " + what )
-   }
+//   private def inform( what: => String, force: Boolean = false )( implicit tx: ProcTxn ) { if( verbose || force ) {
+//      doInform( "Process : " + what )
+//   }}
 
-   private def informDir( what: => String, force: Boolean = false ) = if( verbose || force ) {
+   private def informDir( what: => String, force: Boolean = false ) { if( verbose || force ) {
        printWithTime( what )
-   }
+   }}
 
    /**
     *  @return the number of corresponding _analysis_ frames (e.g. at sr/512) available right now
@@ -414,7 +413,7 @@ srcs.foreach { p =>
             afOut.file.get
          }
          afIn.close
-         val outPath = outF.getAbsolutePath()
+         val outPath = outF.getAbsolutePath
          truncCache += numAnaFrames -> outPath
          Some( outPath )
 
@@ -562,10 +561,10 @@ srcs.foreach { p =>
       fun( res )
    }
 
-   private def spawn( thunk: => Unit )( implicit tx: ProcTxn ) = afterCommit( tx ) { actor ! Do( thunk )}
+   private def spawn( thunk: => Unit )( implicit tx: ProcTxn ) { afterCommit( tx ) { actor ! Do( thunk )}}
 
    private object Do { def apply( thunk: => Unit ) = new Do( thunk )}
-   private class Do( thunk: => Unit ) { def perform = thunk }
+   private class Do( thunk: => Unit ) { def perform() { thunk }}
 
    // Ordering by measure
    case class Sample( idx: Int, measure: Float ) extends Ordered[ Sample ] {
@@ -604,13 +603,13 @@ trait Process extends TxnModel[ Process.Update ] {
 
    protected def keepGoing( implicit tx: ProcTxn ) = state.valid
 
-   protected def inform( what: => String, force: Boolean = false )( implicit tx: ProcTxn ) = if( verbose || force ) {
+   protected def inform( what: => String, force: Boolean = false )( implicit tx: ProcTxn ) { if( verbose || force ) {
       doInform( name + " : " + what )
-   }
+   }}
 
-   protected def informDir( what: => String, force: Boolean = false )  = if( verbose || force ) {
+   protected def informDir( what: => String, force: Boolean = false ) { if( verbose || force ) {
       println( timeString + " " + name + " : " + what )
-   }
+   }}
 
    protected def startThinking( implicit tx: ProcTxn ) {
       val st = state

@@ -85,10 +85,10 @@ object ProcTasten extends Process {
       val waitTime   = rrand( MIN_WAIT, MAX_WAIT )
       inform( "waitForAnalysis " + waitTime )
       startThinking
-      waitForAnalysis( waitTime )( waitForAnaDone )
+      waitForAnalysis( waitTime )( waitForAnaDone() )
    }
 
-   private def waitForAnaDone {
+   private def waitForAnaDone() {
       val temp = choose( Similarity.templates )._2
       atomic( name + " waitForAnaDone" ) { implicit tx =>
          playPath match {
@@ -107,7 +107,7 @@ object ProcTasten extends Process {
    }
 
    private def searchAnaDone( inPath: File, tempName: String, res: Iterable[ Sample ]) {
-      informDir( "search result : " + tempName + " -> " + res )
+      informDir( "search result : " + tempName ) // + " -> " + res.toIndexedSeq.map( _.idx * AnalysisBuffer.anaWinStep ))
       if( res.nonEmpty ) {
          process( inPath, res )
       } else atomic( name + " searchAnaDone empty" ) { implicit tx => stopThinking } // should start re-entry? XXX

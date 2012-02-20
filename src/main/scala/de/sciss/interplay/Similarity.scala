@@ -294,13 +294,12 @@ println( "framesWritten: " + numFrames )
       val bAdd = -b.mean
       var x = 0; while( x < a.numFrames ) {
          val af = a.arr( x )
-         val df = b.arr( x )
+         val bf = b.arr( x )
          var y = 0; while( y < a.numChannels ) {
-            sum += (af( y ) + aAdd) * (df( y ) + bAdd)
-            sum += af( y ) * df( y )
+            sum += (af( y ) + aAdd) * (bf( y ) + bAdd)
          y += 1 }
       x += 1 }
-      val div = (a.stdDev * b.stdDev * a.size - 1)
+      val div = a.stdDev * b.stdDev * a.size
       if( div > 0 ) (sum / div).toFloat else 0f
    }
 

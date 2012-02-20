@@ -66,7 +66,9 @@ object ProcSehen extends Process {
 
 //   val MIN_THRESH    = 1.0    // powers of mean, thus 1 = mean, 2 = mean.pow( 2 ), etc.
 //   val MAX_THRESH    = 0.5    // powers of mean
-   val TEND_THRESH   = tend( name + "-thresh", Lin, 0.0 -> (0.5, 1.0), 1.4 -> (0.5, 1.0), 2.0 -> (0.5, 3.0) )
+
+//   val TEND_THRESH   = tend( name + "-thresh", Lin, 0.0 -> (0.5, 1.0), 1.4 -> (0.5, 1.0), 2.0 -> (0.5, 3.0) )
+   val TEND_THRESH   = tend( name + "-thresh", Lin, 0.0 -> (1.0, 2.0), 1.4 -> (1.0, 2.0), 2.0 -> (1.0, 4.0) )
 
 //   val MIN_HYST      = 0.8    // hysteresis as factor of up-thresh
 //   val MAX_HYST      = 0.6    // hysteresis as factor of up-thresh
@@ -105,11 +107,11 @@ object ProcSehen extends Process {
          val anaBuf     = Similarity.Mat( anaFrames, anaChans )
          fftTrig.react( fftCnt +: coeffs.outputs ) { data =>
             val iter    = data.iterator
-            val cnt     = iter.next.toInt - 1
+            val cnt     = iter.next().toInt - 1
             if( cnt < anaFrames ) {
                val frame = anaBuf.arr( cnt )
                var i = 0; while( i < numMelCoeffs ) {
-                  frame( i ) = (iter.next.toFloat + normAdd( i )) * normMul( i )
+                  frame( i ) = (iter.next().toFloat + normAdd( i )) * normMul( i )
                i += 1 }
             } else {
                spawnAtomic( name + "ana removal" ) { implicit tx =>
@@ -144,9 +146,13 @@ object ProcSehen extends Process {
             val org        = atomic( name + " gen getorg" )( orgRef()( _ ))( me )
             val spec       = audioFileSpec( org.path )
             val speed      = pspeed.ar
-            val sig        = VDiskIn.ar( spec.numChannels, bufCue( org.path ).id, speed )
+            val sig0       = VDiskIn.ar( spec.numChannels, bufCue( org.path ).id, speed )
+//            val env        = EnvGen.ar( Env.linen( 0, sus, rls ))
             val frameInteg = Integrator.ar( speed )
-            val done       = frameInteg > (pframes.ir + SAMPLE_RATE)
+            val numFr      = (pframes.ir + SAMPLE_RATE)
+            val env        = ((numFr - frameInteg) / SAMPLE_RATE).max( 0 ).min( 1 )
+            val sig        = Limiter.ar( sig0 * (-3).dbamp, (-4.5).dbamp ) * env
+            val done       = frameInteg > numFr
             done.react {
                spawnAtomic( name + " gen removal" ) { implicit tx =>
                   val map = orgRef()
@@ -189,7 +195,7 @@ object ProcSehen extends Process {
       val waitTime   = rrand( MIN_WAIT, MAX_WAIT )
       inform( "waitForAnalysis " + waitTime )
       startThinking
-      waitForAnalysis( waitTime )( analysisReady )
+      waitForAnalysis( waitTime )( analysisReady() )
    }
 
    private def reentry( factor: Double )( implicit tx: ProcTxn ) {
@@ -210,7 +216,7 @@ object ProcSehen extends Process {
       }
    }
 
-   private def analysisReady {
+   private def analysisReady() {
       spawnAtomic( name + " analysisReady" ) { implicit tx =>  // XXX must spawn, don't know why? otherwise system blows up!
          if( keepGoing && (SoundProcesses.logicalTime < MAX_TIME) ) {
             val ok = if( liveActive ) {
@@ -233,7 +239,8 @@ object ProcSehen extends Process {
             inform( "analysisReady " + ok )
             if( ok ) startThinking
 
-            reentry( if( ok ) 1.0 else 0.1 )
+//            reentry( if( ok ) 1.0 else 0.1 )
+            if( !ok ) reentry( 0.1 )
          }
       }
    }
@@ -254,33 +261,43 @@ object ProcSehen extends Process {
          informDir( "processAnalysis " + numAnaFrames )
          if( numAnaFrames == 0 ) return
 
-         def flush {
+         def flush() {
             afCtrl.writeFrames( afBuf, 0, pos )
             pos = 0
          }
 
          var sum          = 0.0
+         var min          = Float.PositiveInfinity
+         var max          = Float.NegativeInfinity
          def processMeasure( dstMat: Similarity.Mat ) : Float = {
             val m = Similarity.xcorr( mat )( dstMat )
             if( pos < numAnaFrames ) {
                afChan( pos ) = m
                pos += 1
-               if( pos == 1024 ) flush
+               if( pos == 1024 ) flush()
+               sum += m
+               if( m < min ) min = m
+               if( m > max ) max = m
             }
-            sum += m
+//            sum += m
             m
          }
 
-         def truncDone( res: Option[ String ]) = res match {
+         def truncDone( res: Option[ String ]) { res match {
             case Some( inPath ) =>
-               informDir( "ready for murke" )
                val mean       = sum / numAnaFrames
-               val upThresh   = TEND_THRESH.decide * mean
-               val downThresh = upThresh * TEND_HYST.decide
-               val ctrlPath   = afCtrl.file.get.getAbsolutePath()
-               val outPath    = File.createTempFile( "fsc", ".aif" ).getAbsolutePath()
+               val upTend     = TEND_THRESH.decide
+               val upThresh   = (mean - min) * upTend + min
+//               val downThresh = (upThresh - min) * TEND_HYST.decide + min
+               val downThresh = if( upThresh >= 0 ) TEND_HYST.decide * upThresh else upThresh
+               informDir( "ready for murke. up =  " + upThresh + ", dn = " + downThresh ) // + ", sum = " + sum + "; numAna = " + numAnaFrames )
+               val ctrlPath   = afCtrl.file.get.getAbsolutePath
+               val outPath    = File.createTempFile( "fsc", ".aif" ).getAbsolutePath
+println( "cp " + ctrlPath + " ." )
+println( "cp " + outPath  + " .")
                val doc = FScapeJobs.DrMurke(
                   inPath, ctrlPath, outPath, FScapeJobs.OutputSpec.aiffInt, FScapeJobs.Gain.normalized,
+//                  inPath, ctrlPath, outPath, FScapeJobs.OutputSpec.aiffInt, FScapeJobs.Gain.immediate,
                   mode = "up", threshUp = upThresh.toString, threshDown = downThresh.toString,
                   durUp = "0.1s", durDown = "0.1s", attack = "0.01s", release = "1.0s", spacing = Some( "0s" ))
                FScape.fsc2.process( "murke", doc ) { success =>
@@ -288,20 +305,35 @@ object ProcSehen extends Process {
                   // atomic can lead to timeout here...
                   if( success ) spawnAtomic( name + " fscape done" ) { implicit tx =>
                      stopThinking
-                     startPlaying
-                     inject( outPath )
-                     //                     reentry
+                     val spec = audioFileSpec( outPath )
+                     if( spec.numFrames > 22050 ) {
+                        startPlaying
+                        inject( outPath, spec )
+                        val secs = spec.numFrames / 44100
+                        val reduce = (math.max( 0, 45 - math.max( 0, secs - 15 )) / 45.0) * 0.6
+                        reentry( 1 - reduce )
+                     } else {
+                        reentry( 0.1 )
+                     }
+
                   } else {
                      informDir( "FScape failure!", force = true )
+                     spawnAtomic( name + " fscape done" ) { implicit tx =>
+                        stopThinking
+                        reentry( 0.1 )
+                     }
                   }
                }
             case None =>
                informDir( "Wooop. Something went wrong. No truncated live file", force = true )
-               atomic( name + " trunc failed" ) { implicit tx => stopThinking }
-         }
+               atomic( name + " trunc failed" ) { implicit tx =>
+                  stopThinking
+                  reentry( 0.1 )
+               }
+         }}
 
-         def measureDone {
-            flush
+         def measureDone() {
+            flush()
             afCtrl.close
             informDir( "getting trunc file" )
             atomic( name + " measure done" )( implicit tx => truncateLiveRecording( numAnaFrames )( truncDone( _ )))
@@ -310,7 +342,7 @@ object ProcSehen extends Process {
          // grmpfff
          atomic( name + " start searchAnalysisM" )( implicit tx => searchAnalysisM( mat.numFrames,
                           maxResults = 1, // hmmm...
-                          measure = processMeasure( _ ))( _ => measureDone ))
+                          measure = processMeasure( _ ))( _ => measureDone() ))
       } catch {
          case e =>
             informDir( "Error in process-analysis:", force = true )
@@ -319,8 +351,8 @@ object ProcSehen extends Process {
       }
    }
 
-   private def inject( path: String )( implicit tx: ProcTxn ) {
-      val spec = audioFileSpec( path )
+   private def inject( path: String, spec: AudioFileSpec )( implicit tx: ProcTxn ) {
+//      val spec = audioFileSpec( path )
       inform( "inject " + spec.numFrames )
 //      val d = factory( "O-all" ).make       // XXX should use different spats
       val d = factory( "O-pan" ).make
@@ -337,6 +369,6 @@ object ProcSehen extends Process {
       g.control( "frames" ).v = spec.numFrames
       g.control( "speed" ).v  = TEND_SPEED.decide
       g ~> d
-      Process.addTail( d, 0.1 )
+      Process.addTail( d, 1.0 ) // 0.1
    }
 }
