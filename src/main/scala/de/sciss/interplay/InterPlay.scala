@@ -53,10 +53,10 @@ object InterPlay {
    var ntp: Option[ NodeTreePanel ] = None
    var masterBus: AudioBus = null
 //   var headphonesBus: AudioBus = null
-   val INTERNAL_AUDIO      = true
+   val INTERNAL_AUDIO      = false // true
    val NUAGES_ANTIALIAS    = false
    val MASTER_OFFSET       = 2
-   val MASTER_NUMCHANNELS  = 2 // 6 // 5
+   val MASTER_NUMCHANNELS  = 6 // 2 // 5
    val SOLO_OFFSET         = 0
    val SOLO_NUMCHANNELS    = 2
    val SAMPLE_RATE         = 44100.0
@@ -77,7 +77,7 @@ object InterPlay {
    val AUTO_RECORD         = true
 
    // RLB = live110211_190439.aif            Some( "TemplateSource.aif" )
-   var LIVE_FILE           =  Some( "live110211_190439.aif" ) // Some( "live110206_201606.irc" )   // Some( "live110204_210950.irc" ) // Some( "live110131_214418.irc" ) // Some( "live110125_143645.irc" ) // Some( "live110128_113557.irc" ) // Some( "live110128_121639.irc" )
+   var LIVE_FILE           = None //  Some( "live110211_190439.aif" ) // Some( "live110206_201606.irc" )   // Some( "live110204_210950.irc" ) // Some( "live110131_214418.irc" ) // Some( "live110125_143645.irc" ) // Some( "live110128_113557.irc" ) // Some( "live110128_121639.irc" )
    val LIVE_MODE           = if( LIVE_FILE.isDefined ) 1 else 0
 
    val INITIAL_MASTER_VOLUME  = 2.0 // 1.75
