@@ -1,6 +1,7 @@
 name         := "InterPlay"
 organization := "de.sciss"
 scalaVersion := "2.11.8"
+version      := "0.2.0-SNAPSHOT"
 licenses     := Seq("GPL v2+" -> url("http://www.gnu.org/licenses/gpl-2.0.txt"))
 
 libraryDependencies ++= Seq(
