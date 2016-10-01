@@ -28,20 +28,20 @@
 
 package de.sciss.interplay
 
-import de.sciss.synth.swing.{NodeTreePanel, ServerStatusPanel}
-import actors.Actor
-import de.sciss.synth.proc.{ProcDemiurg, ProcTxn}
-import de.sciss.synth.{ServerOptionsBuilder, ServerConnection, AudioBus, Server}
-import collection.immutable.{IndexedSeq => IIdxSeq}
-import java.awt.{BorderLayout, Font, GraphicsEnvironment, EventQueue}
-import java.awt.geom.{Point2D}
-import de.sciss.scalainterpreter.LogPane
-import javax.swing.{Box, JScrollPane, WindowConstants, JFrame}
-import de.sciss.synth.osc.OSCResponder
+import java.awt.geom.Point2D
+import java.awt.{BorderLayout, EventQueue, Font, GraphicsEnvironment}
 import java.io.{File, PrintStream}
-import SoundProcesses._
-import de.sciss.nuages.{NuagesPanel, NuagesConfig, NuagesFrame}
-import de.sciss.osc.{TCP, OSCMessage}
+import javax.swing.{Box, JFrame, JScrollPane}
+
+import de.sciss.interplay.SoundProcesses._
+import de.sciss.nuages.{NuagesConfig, NuagesFrame}
+import de.sciss.{osc, synth}
+import de.sciss.osc.TCP
+import de.sciss.scalainterpreter.LogPane
+import de.sciss.synth.proc.ProcDemiurg
+import de.sciss.synth.swing.NodeTreePanel
+import de.sciss.synth.swing.j.JServerStatusPanel
+import de.sciss.synth.{AudioBus, Server, ServerConnection}
 
 object InterPlay {
 //   NuagesPanel.verbose = true
@@ -93,7 +93,7 @@ object InterPlay {
    var ctrlPanel: ControlPanel = _
 
    lazy val options     = {
-      val o          = new ServerOptionsBuilder()
+      val o          = Server.Config() // new ServerOptionsBuilder()
       if( inDevice == outDevice ) {
          if( inDevice != "" ) o.deviceName = Some( inDevice )
       } else {
@@ -123,9 +123,12 @@ object InterPlay {
          GraphicsEnvironment.getLocalGraphicsEnvironment.getDefaultScreenDevice.getDefaultConfiguration.getBounds
 
    lazy val logPane = {
-      val res = new LogPane( 2, 30 )
-      res.init
-      res.getComponent( 0 ) match {
+     val cfg = LogPane.Config()
+     cfg.columns = 30
+     cfg.rows    = 2
+      val res = LogPane(cfg)
+//      res.init
+     res.component.peer match {
          case scroll: JScrollPane =>
             scroll.setBorder( null )
             scroll.getViewport().getView().setFont( new Font( "Menlo", Font.PLAIN, 8 ))
@@ -163,7 +166,7 @@ object InterPlay {
       System.setProperty( "actors.enableForkJoin", "false" )
 
 //      val sif  = new ScalaInterpreterFrame( support /* ntp */ )
-      val ssp  = new ServerStatusPanel( ServerStatusPanel.COUNTS )
+      val ssp  = new JServerStatusPanel( JServerStatusPanel.COUNTS )
 //      val sspw = ssp.makeWindow( undecorated = true )
 //      sspw.pack()
 
@@ -181,7 +184,7 @@ object InterPlay {
 
 //      sif.setLocation( sspw.getX + sspw.getWidth + 32, sif.getY )
 //      sif.setVisible( true )
-      booting = Server.boot( options = options ) {
+      booting = Server.boot( config = options ) {
          case ServerConnection.Preparing( srv ) => {
             ssp.server = Some( srv )
 //            ntp.server = Some( srv )
@@ -209,8 +212,8 @@ object InterPlay {
             ctrlF.setVisible( true )
 
             val synPostMID = synPostM.id
-            OSCResponder.add({
-               case OSCMessage( "/meters", `synPostMID`, 0, values @ _* ) =>
+            synth.osc.Responder.add({
+               case osc.Message( "/meters", `synPostMID`, 0, values @ _* ) =>
                   EventQueue.invokeLater( new Runnable { def run = ctrlPanel.meterUpdate( values.map( _.asInstanceOf[ Float ]).toArray )})
             }, s )
          }

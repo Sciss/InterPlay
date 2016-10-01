@@ -28,7 +28,7 @@
 
 package de.sciss.interplay
 
-import de.sciss.synth.{ConstEnvShape, curveShape, expShape, cubShape, sinShape, linShape, welchShape, stepShape, sqrShape, EnvShape}
+import de.sciss.synth.{Env, cubShape, curveShape, expShape, linShape, sinShape, sqrShape, stepShape, welchShape}
 
 object Tendency {
    var verbose = false
@@ -47,7 +47,7 @@ object Tendency {
       }
    }
 
-   implicit def symbolShape( sym: Symbol ) : ConstEnvShape = sym match {
+   implicit def symbolShape( sym: Symbol ) : Env.ConstShape = sym match {
       case 'welch => welchShape
       case 'step  => stepShape
       case 'sqr   => sqrShape
@@ -57,15 +57,15 @@ object Tendency {
       case 'cub   => cubShape
    }
 
-   implicit def curved( curvature: Double ) : ConstEnvShape = new curveShape( curvature.toFloat )
+   implicit def curved( curvature: Double ) : Env.ConstShape = new curveShape( curvature.toFloat )
 
    implicit def tuple2ToSeg( tup: (Double, (Double, Double)) ) : TimePoint =
       TimePoint( tup._1.toFloat, tup._2._1.toFloat, tup._2._2.toFloat, linShape )
 
-   implicit def tuple3ToSeg[ S <% ConstEnvShape ]( tup: (Double, (Double, Double), S) ) : TimePoint =
+   implicit def tuple3ToSeg[ S <% Env.ConstShape ]( tup: (Double, (Double, Double), S) ) : TimePoint =
       TimePoint( tup._1.toFloat, tup._2._1.toFloat, tup._2._2.toFloat, tup._3 )
 
-   case class TimePoint( time: Float, lo: Float, hi: Float, shp: ConstEnvShape )
+   case class TimePoint( time: Float, lo: Float, hi: Float, shp: Env.ConstShape )
 
    def tend( name: String, d: Distrib, pts: TimePoint* ) : Tendency = {
       val durs    = pts.map( _.time ).sorted.sliding( 2, 1 ).map( tup => tup(1) - tup(0) ).toList

@@ -150,8 +150,8 @@ object ProcRiechen extends Process {
 //      }
 
       filter( name ) {
-         graph { in =>
-            require( in.numOutputs == MASTER_NUMCHANNELS )
+         graph { in: In =>
+            require( in.numChannels == MASTER_NUMCHANNELS )
 
             val modChans: IIdxSeq[ Int ] = scramble2( 0 until MASTER_NUMCHANNELS )
             val coll = List.tabulate( MASTER_NUMCHANNELS ) { ch =>
@@ -159,8 +159,12 @@ object ProcRiechen extends Process {
 //               val in2  = Select.ar( modChans( ch ) ... hmmmm, this needs to be a control to make sense )
                val in2  = in \ modChans( ch )
                val norm = Normalizer.ar( in2, dur = 0.02 )
-               val Seq(re1, im1) = Hilbert.ar( in1 ).outputs
-               val Seq(re2, im2) = Hilbert.ar( norm ).outputs
+              val hilb1 = Hilbert.ar( in1 )
+              val re1 = hilb1 \ 0
+              val im1 = hilb1 \ 1
+              val hilb2 = Hilbert.ar( norm )
+              val re2 = hilb2 \ 0
+              val im2 = hilb2 \ 1
                val flt     = re1 * re2 - im1 * im2
                val fadeIn  = ExpRand( MIN_FADEIN, MAX_FADEIN )
                val fadeOut = ExpRand( MIN_FADEOUT, MAX_FADEOUT )

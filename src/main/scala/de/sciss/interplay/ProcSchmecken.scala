@@ -28,17 +28,17 @@
 
 package de.sciss.interplay
 
-import de.sciss.synth
-import synth._
-import ugen._
-import proc._
-import DSL._
-import Util._
 import java.io.File
-import InterPlay._
-import SoundProcesses._
-import Konvulsiv._
-import Tendency._
+
+import de.sciss.interplay.Konvulsiv._
+import de.sciss.interplay.SoundProcesses._
+import de.sciss.interplay.Tendency._
+import de.sciss.interplay.Util._
+import de.sciss.synth
+import de.sciss.synth._
+import de.sciss.synth.proc.DSL._
+import de.sciss.synth.proc._
+import de.sciss.synth.ugen._
 
 /**
  * Records part of the sum signal and runs it through FScape.
@@ -77,9 +77,9 @@ object ProcSchmecken extends Process {
    private val anaNameD = name + "-anad"
 
    def init(  implicit tx: ProcTxn ) {
-      def flonky( in: GE, pdur: ProcParamScalar, ppos: ProcParamScalar ) {
+      def flonky( in: In, pdur: ProcParamScalar, ppos: ProcParamScalar ) {
          val recPath    = File.createTempFile( "sum", ".aif" ) // , sumPath
-         val b          = bufRecord( recPath.getAbsolutePath, in.numOutputs )
+         val b          = bufRecord( recPath.getAbsolutePath, in.numChannels)
          val dur        = pdur.ir
          val env        = EnvGen.kr( Env.linen( 0.1, dur - 1.1, 1.0 ))
          val phase      = Line.kr( 0, 1, dur )
@@ -103,7 +103,7 @@ object ProcSchmecken extends Process {
       filter( anaNameF ) {
          val pdur    = pScalar( "dur", ParamSpec( MIN_REC, MAX_REC ), MIN_REC )
          val ppos    = pScalar( "pos", ParamSpec( 0, 1 ), 0 )
-         graph { in =>
+         graph { in: In =>
             flonky( in, pdur, ppos )
             in // thru
          }
@@ -112,7 +112,7 @@ object ProcSchmecken extends Process {
       diff( anaNameD ) {
          val pdur    = pScalar( "dur", ParamSpec( MIN_REC, MAX_REC ), MIN_REC )
          val ppos    = pScalar( "pos", ParamSpec( 0, 1 ), 0 )
-         graph { in =>
+         graph { in: In =>
             flonky( in, pdur, ppos )
             0.0
          }

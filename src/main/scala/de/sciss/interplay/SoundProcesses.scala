@@ -38,7 +38,7 @@ import InterPlay._
 import java.nio.ByteBuffer
 import java.io.{File, FileFilter}
 import java.text.SimpleDateFormat
-import de.sciss.osc.OSCBundle
+import de.sciss.osc
 import java.util.Locale
 
 object SoundProcesses {
@@ -79,7 +79,7 @@ object SoundProcesses {
             val spec = AudioFile.readSpec( p )
             (spec.numFrames > 0L) && (spec.numChannels == MIC_NUMCHANNELS)
          } catch {
-            case _ => false
+            case _: Throwable => false
          }
       }
    }).toList.sortBy( _.getName ).lastOption )
@@ -132,7 +132,8 @@ object SoundProcesses {
 //            SendReply.kr( fftTrig, coeffs, "/ana" )
             val me = Proc.local
             val frame = anaClientBuf.emptyFrame
-            fftTrig.react( fftCnt +: onsets +: coeffs.outputs ) { data =>
+           val ana = Flatten(Seq(fftCnt, onsets, coeffs))
+            fftTrig.react(ana) { data =>
                val iter    = data.iterator
                val cnt     = iter.next.toInt - 1
                val onset   = iter.next > 0
@@ -179,7 +180,7 @@ object SoundProcesses {
       // -------------- DIFFUSIONS --------------
 
       val diffMute = diff( "O-mute" ) {
-          graph { in =>
+          graph { in: In =>
              val gagaism: GE = 0
              gagaism
           }
@@ -191,7 +192,7 @@ object SoundProcesses {
 
          def placeChannels( sig: GE ) : GE = {
             if( numCh == masterBus.numChannels ) sig else {
-               IIdxSeq.fill( chanOff )( Constant( 0 )) ++ sig.outputs ++ IIdxSeq.fill( masterBus.numChannels - (numCh + chanOff) )( Constant( 0 ))
+               Flatten(IIdxSeq.fill( chanOff )( Constant( 0 )) ++ Seq(sig) ++ IIdxSeq.fill( masterBus.numChannels - (numCh + chanOff) )( Constant( 0 )))
             }
          }
 
@@ -199,11 +200,11 @@ object SoundProcesses {
             val pamp  = pAudio( "amp", ParamSpec( 0.01, 10, ExpWarp ), 1 )
             val pout  = pAudioOut( "out", None )
 
-            graph { in =>
-               val sig          = (in * Lag.ar( pamp.ar, 0.1 )).outputs
-               val inChannels   = sig.size
+            graph { in: In =>
+               val sig          = (in * Lag.ar( pamp.ar, 0.1 )) // .outputs
+               val inChannels   = in.numChannels // sig.size
                val outChannels  = numCh
-               val outSig       = IIdxSeq.tabulate( outChannels )( ch => sig( ch % inChannels ))
+               val outSig       = IIdxSeq.tabulate( outChannels )( ch => sig.\( ch % inChannels ))
                pout.ar( placeChannels( outSig ))
             }
          }
@@ -213,13 +214,13 @@ object SoundProcesses {
             val pidx  = pAudio( "idx", ParamSpec( 0, numCh - 1, LinWarp, 1 ), 0 )
             val pout  = pAudioOut( "out", None )
 
-            graph { in =>
-               val sig           = (in * Lag.ar( pamp.ar, 0.1 )).outputs
-               val inChannels    = sig.size
+            graph { in: In =>
+               val sig           = (in * Lag.ar( pamp.ar, 0.1 )) // .outputs
+               val inChannels    = in.numChannels // sig.size
                val outChannels   = numCh
                val idx           = Lag.ar( pidx.ar, 0.1 )
                val outSig        = IIdxSeq.tabulate( outChannels )( ch =>
-                  sig( ch % inChannels ) * (1 - idx.absdif( ch ).min( 1 )))
+                  sig.\( ch % inChannels ) * (1 - idx.absdif( ch ).min( 1 )))
                pout.ar( placeChannels( outSig ))
             }
          }
@@ -230,11 +231,11 @@ object SoundProcesses {
 //         val pout  = pAudioOut( "out", None )
          val pamp  = pAudio( "amp", ParamSpec( 0, 10 ), 1 )
 
-         graph { in =>
-            val sig          = (in * Lag.ar( pamp.ar, 0.1 )).outputs
-            val inChannels   = sig.size
+         graph { in: In =>
+            val sig          = (in * Lag.ar( pamp.ar, 0.1 )) // .outputs
+            val inChannels   = in.numChannels // sig.size
             val outChannels  = MASTER_NUMCHANNELS
-            val outSig       = IIdxSeq.tabulate( outChannels )( ch => sig( ch % inChannels ))
+            val outSig       = IIdxSeq.tabulate( outChannels )( ch => sig.\( ch % inChannels ))
 //            pout.ar( placeChannels( outSig ))
             outSig
          }
@@ -245,13 +246,13 @@ object SoundProcesses {
          val pamp  = pAudio( "amp", ParamSpec( 0, 10 ), 1 )
          val pidx  = pAudio( "idx", ParamSpec( 0, MASTER_NUMCHANNELS - 1, LinWarp, 1 ), 0 )
 
-         graph { in =>
-            val sig           = (in * Lag.ar( pamp.ar, 0.1 )).outputs
-            val inChannels    = sig.size
+         graph { in: In =>
+            val sig           = (in * Lag.ar( pamp.ar, 0.1 )) // .outputs
+            val inChannels    = in.numChannels // sig.size
             val outChannels   = MASTER_NUMCHANNELS
             val idx           = Lag.ar( pidx.ar, 0.1 )
             val outSig        = IIdxSeq.tabulate( outChannels )( ch =>
-               sig( ch % inChannels ) * (1 - idx.absdif( ch ).min( 1 )))
+               sig.\( ch % inChannels ) * (1 - idx.absdif( ch ).min( 1 )))
             //placeChannels( outSig )
             outSig
          }
@@ -265,15 +266,15 @@ object SoundProcesses {
          val pspeed  = pControl( "speed",  ParamSpec( 0.01, 10.0, ExpWarp ), 0.1 )
 //         val pout    = pAudioOut( "out", None )
 
-         graph { in =>
+         graph { in: In =>
             val baseAzi       = Lag.kr( pbase.kr, 0.5 ) + IRand( 0, 360 )
             val rotaAmt       = Lag.kr( prota.kr, 0.1 )
             val spread        = Lag.kr( pspread.kr, 0.5 )
-            val inChannels   = in.numOutputs
+            val inChannels   = in.numChannels
             val outChannels  = MASTER_NUMCHANNELS // numCh
 //            val sig1         = List.tabulate( outChannels )( ch => sig( ch % inChannels ))
             val rotaSpeed     = pspeed.kr // 0.1
-            val inSig         = (in * Lag.ar( pamp.ar, 0.1 )).outputs
+            val inSig         = in * Lag.ar( pamp.ar, 0.1 ) // .outputs
             val noise         = LFDNoise1.kr( rotaSpeed ) * rotaAmt * 2
             val outSig0: Array[ GE ] = Array.fill( outChannels )( 0 )
             val altern        = false
@@ -290,11 +291,11 @@ object SoundProcesses {
 //				   level = ((1 - levelMod) * w) + (1 - w);
                val level   = 1   // (1 - w);
                val width   = (spread * (outChannels - 2)) + 2
-               val pan     = PanAz.ar( outChannels, inSig( inCh ), pos, level, width, 0 )
-               pan.outputs.zipWithIndex.foreach( tup => {
-                  val (chanSig, i) = tup
+               val pan     = PanAz.ar( outChannels, inSig.\( inCh ), pos, level, width, 0 )
+              for (i <- 0 until outChannels) {
+                val chanSig = pan \ i
                   outSig0( i ) = outSig0( i ) + chanSig
-               })
+               }
             }
             val outSig = outSig0.toSeq
 //            if( METERS ) Out.ar( masterBusIndex, outSig )
@@ -311,11 +312,11 @@ object SoundProcesses {
          val plag  = pControl( "lag", ParamSpec( 0.1, 10 ), 1 )
 //         val pout  = pAudioOut( "out", None )
 
-         graph { in =>
-            val sig          = (in * Lag.ar( pamp.ar, 0.1 )).outputs
-            val inChannels   = sig.size
+         graph { in: In =>
+            val sig          = (in * Lag.ar( pamp.ar, 0.1 )) // .outputs
+            val inChannels   = in.numChannels // sig.size
             val outChannels  = MASTER_NUMCHANNELS // numCh
-            val sig1: GE     = List.tabulate( outChannels )( ch => sig( ch % inChannels ))
+            val sig1: GE     = List.tabulate( outChannels )( ch => sig.\( ch % inChannels ))
             val freq         = pfreq.kr
             val lag          = plag.kr
             val pw           = ppow.kr
@@ -328,29 +329,30 @@ object SoundProcesses {
       }
 
       val filtThru = filter( "O-thru" ) {
-         graph { in =>
-            require( in.numOutputs == MASTER_NUMCHANNELS )
+         graph { in: In =>
+            require( in.numChannels == MASTER_NUMCHANNELS )
             in
          }
       }
       val diffThru = diff( "D-thru" ) {
 //         val pin   = pAudioIn( "in", Some( RichBus.audio( s, MASTER_NUMCHANNELS )))
          val pout  = pAudioOut( "out", None )
-         graph { in =>
-            require( in.numOutputs == MASTER_NUMCHANNELS )
+         graph { in: In =>
+            require( in.numChannels == MASTER_NUMCHANNELS )
             pout.ar( in )
          }
       }
       val factCollAll = diff( "D-mast" ) {
          val pgate   = pControl( "gate", ParamSpec( 0, 1, LinWarp, 1 ), 1 )
          val pout    = pAudioOut( "out", None )
-         graph { in =>
-            require( in.numOutputs == MASTER_NUMCHANNELS )
+         graph { in: In =>
+            require( in.numChannels == MASTER_NUMCHANNELS )
             val liveSecs   = liveDur * 60
             val remainSecs = totalDur * 60 - liveSecs
             val climax     = remainSecs - 60
             val release    = remainSecs - climax
             val boost      = (2.5).dbamp
+           import Env.{Seg => EnvSeg}
             val env        = EnvGen.kr( new Env( 1,
                List( EnvSeg( liveSecs, 1 ), EnvSeg( climax, boost ), EnvSeg( release, 1 )), releaseNode = 0 ), gate = pgate.kr )
             val flt        = in * env
@@ -366,13 +368,13 @@ object SoundProcesses {
 
       diff( "mitschnitt" ) {
          val df = new SimpleDateFormat( "'rec'yyMMdd'_'HHmmss'.irc'", Locale.US )
-         graph { in =>
+         graph { in: In =>
             val recPath = new File( new File( REC_PATH, "mitschnitt" ), df.format( new java.util.Date() ))
-            DiskOut.ar( bufRecord( recPath.getAbsolutePath, in.numOutputs, AudioFileType.IRCAM ).id, in )
+            DiskOut.ar( bufRecord( recPath.getAbsolutePath, in.numChannels, AudioFileType.IRCAM ).id, in )
          }
       }
 
-      def recMix( sig: GE, numOut: Int ) : GE = {
+      def recMix( sig: In, numOut: Int ) : GE = {
          val numIn = masterBus.numChannels
          val sig1: GE = if( numOut == numIn ) {
             sig
@@ -381,8 +383,8 @@ object SoundProcesses {
          } else {
             val sigOut  = Array.fill[ GE ]( numOut )( 0.0f )
             val sca     = (numOut - 1).toFloat / (numIn - 1)
-            sig.outputs.zipWithIndex.foreach { tup =>
-               val (sigIn, inCh) = tup
+           for (inCh <- 0 until sig.numChannels) {
+             val sigIn = sig \ inCh
                val outCh         = inCh * sca
                val fr            = outCh % 1f
                val outChI        = outCh.toInt
@@ -395,7 +397,7 @@ object SoundProcesses {
             }
             Limiter.ar( sigOut.toSeq, (-0.2).dbamp )
          }
-         assert( sig1.numOutputs == numOut )
+         // assert( sig1.numOutputs == numOut )
          sig1
       }
 
@@ -414,8 +416,9 @@ object SoundProcesses {
                val (_, off, numIn)  = group
 //println( "OFF = " + off + ", numIn = " + numIn )
                val pSig       = In.ar( NumOutputBuses.ir + off, numIn )
-               val peak       = Peak.kr( pSig, meterTr ).outputs
-               val peakM      = peak.tail.foldLeft[ GE ]( peak.head )( _ max _ ) \ 0
+               val peak       = Peak.kr( pSig, meterTr ) // .outputs
+              val peakM = Reduce.max(peak)
+//               val peakM      = peak.tail.foldLeft[ GE ]( peak.head )( _ max _ ) \ 0
                val rms        = A2K.kr( Lag.ar( pSig.squared, 0.1 ))
                val rmsM       = (Mix( rms ) / numIn) \ 0
                (peakM, rmsM)
@@ -425,9 +428,9 @@ object SoundProcesses {
          }
          val masterPeak = Peak.kr( sig, meterTr )
          val masterRMS  = A2K.kr( Lag.ar( sig.squared, 0.1 ))
-         val peak       = masterPeak.outputs ++ peoplePeak
-         val rms        = masterRMS.outputs  ++ peopleRMS
-         val meterData  = (peak zip rms).flatMap( tup => tup._1 :: tup._2 :: Nil )
+         val peak       = Flatten(masterPeak +: peoplePeak)
+         val rms        = Flatten(masterRMS +: peopleRMS)
+         val meterData  = Zip(peak, rms)
          SendReply.kr( meterTr,  meterData, "/meters" )
       }
       synPostM = dfPostM.play( s, addAction = addToTail )
@@ -442,16 +445,18 @@ object SoundProcesses {
          val pdn        = pControl( "dn", ParamSpec( 0.1, 10, ExpWarp ), 4 )
          val pathresh   = pControl( "athr", ParamSpec( 0.001, 1, ExpWarp ), 0.003 )
          val ppthresh   = pControl( "pthr", ParamSpec( 0.1, 1, ExpWarp ), 0.5 )
-         graph { in =>
+         graph { in: In =>
             val flt0 = MidEQ.ar( in, 1328, 1.0/10, -18 )
             def stage( in: GE ) = {
-               val Seq( freq, hasPitch ) = Pitch.kr( in,
+               val pitch = Pitch.kr( in,
                   initFreq = 441,
                   minFreq  = 441,
                   maxFreq  = 16000,
                   execFreq = 441,
                   ampThresh = 0.05,
-                  peakThresh = 0.2 ).outputs
+                  peakThresh = 0.2 )
+              val freq = pitch \ 0
+              val hasPitch = pitch \ 1
                val q = freq.linlin( 441, 16000, 9, 2 ) + 1
                MidEQ.ar( in, freq, q.reciprocal, LagUD.kr( hasPitch * -18, pup.kr, pdn.kr ))
             }
@@ -466,12 +471,12 @@ object SoundProcesses {
          val ppow  = pControl( "pow", ParamSpec( 1, 10 ), 2 )
          val plag  = pControl( "lag", ParamSpec( 0.1, 10 ), 1 )
 
-         graph { in =>
-            val sig          = (in * Lag.ar( pamp.ar, 0.1 )).outputs
-            val inChannels   = sig.size
+         graph { in: In =>
+            val sig          = (in * Lag.ar( pamp.ar, 0.1 )) // .outputs
+            val inChannels   = in.numChannels // sig.size
             val outChannels  = MASTER_NUMCHANNELS
 
-            val sig1: GE     = List.tabulate( outChannels )( ch => sig( ch % inChannels ))
+            val sig1: GE     = List.tabulate( outChannels )( ch => sig.\( ch % inChannels ))
             val freq         = pfreq.kr
             val lag          = plag.kr
             val pw           = ppow.kr
@@ -496,7 +501,7 @@ object SoundProcesses {
          ReplaceOut.ar( SOLO_OFFSET, recMix( sig, SOLO_NUMCHANNELS ))
       }
       hpSynth = Synth( s )
-      dfHP.recv( s, OSCBundle(
+      dfHP.recv( s, osc.Bundle.now(
          hpSynth.newMsg( dfHP.name, synPostM, addAction = addAfter ),
          hpSynth.runMsg( false )
       ))

@@ -103,7 +103,8 @@ object ProcSehen extends Process {
          val me         = Proc.local
          val anaFrames  = (TEND_ANA_DUR.decide * SAMPLE_RATE / anaWinStep + 0.5).toInt
          val anaBuf     = Similarity.Mat( anaFrames, anaChans )
-         fftTrig.react( fftCnt +: coeffs.outputs ) { data =>
+         val ana = Flatten(Seq(fftCnt, coeffs))
+         fftTrig.react( ana ) { data =>
             val iter    = data.iterator
             val cnt     = iter.next.toInt - 1
             if( cnt < anaFrames ) {
@@ -123,14 +124,14 @@ object ProcSehen extends Process {
       }
 
       diff( anaNameD ) {
-         graph { in =>
+         graph { in: In =>
             flonky( in )
             0.0
          }
       }
 
       filter( anaNameF ) {
-         graph { in =>
+         graph { in: In =>
             flonky( in )
             in // thru
          }
@@ -162,7 +163,7 @@ object ProcSehen extends Process {
 
       filter( eraseName ) {
          val pdur = pScalar( "dur", ParamSpec( 2.0, 60.0, ExpWarp ), 10.0 )
-         graph { in =>
+         graph { in: In =>
             val me      = Proc.local
             val dur     = pdur.ir
             val freq    = XLine.ar( 20, 18000, dur - 1 )
@@ -247,7 +248,7 @@ object ProcSehen extends Process {
          val f             = File.createTempFile( "tmp", ".aif" )
          val spec          = AudioFileSpec( numChannels = 1, sampleRate = anaClientBuf.sampleRate )
          val afCtrl        = AudioFile.openWrite( f, spec )
-         val afBuf         = afCtrl.frameBuffer( 1024 )
+         val afBuf         = afCtrl.buffer( 1024 )
          val afChan        = afBuf( 0 )
          var pos           = 0
          val numAnaFrames  = availableLiveRecordingFrames
@@ -255,7 +256,7 @@ object ProcSehen extends Process {
          if( numAnaFrames == 0 ) return
 
          def flush {
-            afCtrl.writeFrames( afBuf, 0, pos )
+            afCtrl.write( afBuf, 0, pos )
             pos = 0
          }
 
@@ -312,7 +313,7 @@ object ProcSehen extends Process {
                           maxResults = 1, // hmmm...
                           measure = processMeasure( _ ))( _ => measureDone ))
       } catch {
-         case e =>
+         case e: Throwable =>
             informDir( "Error in process-analysis:", force = true )
             e.printStackTrace()
 //            atomic( fastReentry( _ ))

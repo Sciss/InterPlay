@@ -68,14 +68,16 @@ object ProcOrientieren extends Process {
       filter( name ) {
 //         val pdur    = pScalar( "dur", ParamSpec( MIN_REC, MAX_REC ), MIN_REC )
 //         val ppos = pScalar( "pos", ParamSpec( 0, 1 ), 0 )
-         graph { in =>
-            val (sig, durs) = in.outputs.map( chan => {
+         graph { in: In =>
+            val (sig, durs) = (0 until in.numChannels).map( ch => {
+               val chan = in \ ch
                val bufFrames  = (rrand( MIN_DLY, MAX_DLY ) * SAMPLE_RATE).toInt
                val buf        = bufEmpty( bufFrames ).id
                val bufDur     = BufDur.ir( buf )
                val xfadeDur   = 1
                val fadeStart  = bufDur + xfadeDur
                val glissDur   = ExpRand( MIN_GLISS, MAX_GLISS )
+               import Env.{Seg => EnvSeg}
                val dlyTime    = EnvGen.ar( Env( 1, List( EnvSeg( fadeStart, 1, stepShape ), EnvSeg( glissDur, 0, sinShape ))), levelScale = bufDur )
                val dly        = BufDelayL.ar( buf, chan, dlyTime )
                val res        = XFade2.ar( chan, dly, EnvGen.kr( Env( -1, List( EnvSeg( bufDur, -1, stepShape ), EnvSeg( xfadeDur, 1 )))))

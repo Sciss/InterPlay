@@ -28,13 +28,13 @@
 
 package de.sciss.interplay
 
-import de.sciss.synth.{EnvShape, linShape, ConstEnvShape}
+import de.sciss.synth.{Env, linShape}
 
 /**
  * Have this here until ScalaCollider's Env transparently supports RichNumbers as well
  */
 object Huellkurve {
-   case class Seg( dur: Float, targetLevel: Float, shape: ConstEnvShape = linShape )
+   case class Seg( dur: Float, targetLevel: Float, shape: Env.ConstShape = linShape )
 }
 case class Huellkurve( startLevel: Float, segments: Seq[ Huellkurve.Seg ]) {
    def levelAt( time: Float ) : Float = {
@@ -43,7 +43,7 @@ case class Huellkurve( startLevel: Float, segments: Seq[ Huellkurve.Seg ]) {
       var y1   = startLevel
       var t0   =  0f
       var t1   = 0f
-      var shape: ConstEnvShape = linShape
+      var shape: Env.ConstShape = linShape
 
       segments.foreach { seg =>
          t0          = t1

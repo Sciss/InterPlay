@@ -77,12 +77,12 @@ object ProcHoeren extends Process {
          val ptdown  = pControl( "thresh", ParamSpec( 0, 16 ), 6 )
          val pdly    = pControl( "delay", ParamSpec( 1, 16, ExpWarp ), 3 )
          val pdur    = pScalar( "dur", ParamSpec( 5, 30, ExpWarp ), 5 )
-         graph { in =>
+         graph { in: In =>
 //            val threshUp   = ptup.kr
             val threshDown = ptdown.kr
             val me         = Proc.local
-            in.outputs.zipWithIndex.foreach { tup =>
-               val (chSig, ch) = tup
+            for (ch <- 0 until in.numChannels) {
+              val chSig = in \ ch
                val loudness   = Loudness.kr( FFT( bufEmpty( 1024 ).id, chSig ))
                val lagged     = LagUD.kr( loudness, 0, 2 )
 ////lagged.poll( 1, label = "Loud" )
@@ -131,6 +131,8 @@ object ProcHoeren extends Process {
 //DC.kr( atk ).poll( 0.1, label = "atk" )
 //DC.kr( sus ).poll( 0.1, label = "sus" )
 //DC.kr( rls ).poll( 0.1, label = "rls" )
+
+           import Env.{Seg => EnvSeg}
 
             val env        = EnvGen.ar( new Env( 0, List( EnvSeg( dly, 0 ), EnvSeg( atk, 1, sqrShape ), EnvSeg( sus, 1 ), EnvSeg( rls, 0, sqrShape ))))
             val me         = Proc.local

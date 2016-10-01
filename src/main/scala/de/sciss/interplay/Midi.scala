@@ -117,7 +117,7 @@ object Midi {
                if( outDevO.isEmpty ) inform( "No output device '" + OUT_DESCR + "' found!" )
          }
       } catch {
-         case e =>
+         case e: Throwable =>
             inform( "Error initializing MIDI: ")
             e.printStackTrace()
       }

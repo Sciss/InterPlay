@@ -28,38 +28,32 @@
 
 package de.sciss.interplay
 
-import de.sciss.scalainterpreter.{ LogPane, ScalaInterpreterPane }
-import de.sciss.synth.Server
-import tools.nsc.Interpreter
-import java.io.PrintStream
-import de.sciss.synth.swing.NodeTreePanel
 import java.awt.event.KeyEvent
-import java.awt.{Toolkit, GraphicsEnvironment}
-import InterPlay._
+import java.awt.{GraphicsEnvironment, Toolkit}
 import javax.swing._
+
+import de.sciss.interplay.InterPlay._
+import de.sciss.scalainterpreter.{CodePane, Interpreter, InterpreterPane}
+
+import scala.tools.nsc.interpreter.NamedParam
 
 /**
  *    @version 0.11, 04-Jun-10
  */
 class ScalaInterpreterFrame( support: REPLSupport /* s: Server, ntp: NodeTreePanel*/ )
 extends JFrame( "Scala Interpreter" ) {
-   val pane = new ScalaInterpreterPane
-//   private val sync = new AnyRef
-//   private var inCode: Option[ Interpreter => Unit ] = None
-//   private var interpreter: Option[ Interpreter ] = None
+  private val txnKeyStroke = {
+    val ms = Toolkit.getDefaultToolkit.getMenuShortcutKeyMask
+    KeyStroke.getKeyStroke( KeyEvent.VK_T, ms )
+  }
 
-   private val txnKeyStroke = {
-      val ms = Toolkit.getDefaultToolkit.getMenuShortcutKeyMask
-      KeyStroke.getKeyStroke( KeyEvent.VK_T, ms )
-   }
+  val pConfig = InterpreterPane.Config()
+  val cConfig = CodePane.Config()
+  val iConfig = Interpreter.Config()
 
-   // ---- constructor ----
-   {
-      val cp = getContentPane
-
-      pane.initialText = pane.initialText +
-"""// Press '""" + KeyEvent.getKeyModifiersText( txnKeyStroke.getModifiers() ) + " + " +
-      KeyEvent.getKeyText( txnKeyStroke.getKeyCode() ) + """' to execute transactionally.
+  cConfig.text =
+    """// Press '""" + KeyEvent.getKeyModifiersText( txnKeyStroke.getModifiers() ) + " + " +
+    KeyEvent.getKeyText( txnKeyStroke.getKeyCode() ) + """' to execute transactionally.
 
 Similarity.test( 7777, 43, normalize = true, tpe = Similarity.CC )
 
@@ -103,45 +97,27 @@ Similarity.search( Similarity.templates( "string" ), 0.5f, 30, 1.0f ) { res => p
 //Similarity.saveTemplate( 11796, 86, "gliss" )
 """
 
-      pane.initialCode = Some(
-"""
-import math._
-import de.sciss.synth._
-import de.sciss.synth.ugen._
-import de.sciss.synth.swing._
-import de.sciss.synth.proc._
-import de.sciss.synth.proc.DSL._
-import de.sciss.interplay._
-import support._
-"""
-      )
+  iConfig.bindings :+=
+    NamedParam("support", support)
 
-      pane.bindingsCreator = Some( (in: Interpreter ) => {
-//         sync.synchronized {
-//            interpreter = Some( in )
-//println( "bindingsCreator " + inCode.isDefined )
-//            inCode.foreach( _.apply( in ))
-//         }
-         in.bind( "support", classOf[ REPLSupport ].getName, support )
-//         in.bind( "ntp", classOf[ NodeTreePanel ].getName, ntp )
-//         in.bind( "in", classOf[ Interpreter ].getName, in )
-      })
+  cConfig.keyMap += txnKeyStroke -> (() => txnExecute)
 
-//      val lp = new LogPane
-//      lp.init
-      pane.out = Some( logPane.writer )
-//      Console.setOut( lp.outputStream )
-//      Console.setErr( lp.outputStream )
-//      System.setErr( new PrintStream( lp.outputStream ))
+  iConfig.out = Some(logPane.writer)
 
-      pane.customKeyMapActions += txnKeyStroke -> (() => txnExecute)
+  iConfig.imports ++= Seq(
+  "import math._", "de.sciss.synth._", "de.sciss.synth.ugen._", "de.sciss.synth.swing._", "de.sciss.synth.proc._",
+    "de.sciss.synth.proc.DSL._", "de.sciss.interplay._", "support._")
 
-      pane.init
-//      val sp = new JSplitPane( SwingConstants.HORIZONTAL )
-//      sp.setTopComponent( pane )
-//      sp.setBottomComponent( lp )
-//      cp.add( sp )
-      cp.add( pane )
+  val pane = InterpreterPane(pConfig, iConfig, cConfig)
+//   private val sync = new AnyRef
+//   private var inCode: Option[ Interpreter => Unit ] = None
+//   private var interpreter: Option[ Interpreter ] = None
+
+   // ---- constructor ----
+   {
+      val cp = getContentPane
+
+      cp.add( pane.component.peer )
       val b = GraphicsEnvironment.getLocalGraphicsEnvironment.getMaximumWindowBounds
       setSize( b.width / 2, b.height * 7 / 8 )
 //      sp.setDividerLocation( b.height * 2 / 3 )
@@ -154,7 +130,7 @@ import support._
    private var txnCount = 0
 
    def txnExecute {
-      pane.getSelectedTextOrCurrentLine.foreach( txt => {
+      pane.codePane.activeText.foreach( txt => {
          val txnId  = txnCount
          txnCount += 1
          val txnTxt = """class _txnBody""" + txnId + """( implicit t: ProcTxn ) {

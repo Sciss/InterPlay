@@ -60,9 +60,9 @@ object ProcKoerper extends Process {
    def init( implicit tx: ProcTxn ) {
       diff( anaName ) {
          val pdur = pScalar( "dur", ParamSpec( REC_MIN, REC_MAX ), REC_MIN )
-         graph { in =>
+         graph { in: In =>
             val recPath    = File.createTempFile( "koerp", ".aif" ).getAbsolutePath
-            val b          = bufRecord( recPath, in.numOutputs )
+            val b          = bufRecord( recPath, in.numChannels)
             val me         = Proc.local
             atomic( name + " setting org" )( implicit tx => orgRef.transform { map =>
                val org = map( me )
@@ -105,12 +105,12 @@ object ProcKoerper extends Process {
       filter( diffName ) {
          val pamp  = pAudio( "amp", ParamSpec( 0, 10 ), 1 )
 
-         graph { in =>
-            val sig           = (in * Lag.ar( pamp.ar, 0.1 )).outputs
-            val inChannels    = sig.size
+         graph { in: In =>
+            val sig           = (in * Lag.ar( pamp.ar, 0.1 )) // .outputs
+            val inChannels    = in.numChannels // sig.size
             val outChannels   = MASTER_NUMCHANNELS
             val shift         = MASTER_NUMCHANNELS / 2
-            val outSig        = IIdxSeq.tabulate( outChannels )( ch => sig( (ch + shift) % inChannels ))
+            val outSig        = IIdxSeq.tabulate( outChannels )( ch => sig.\( (ch + shift) % inChannels ))
             outSig
          }
       }

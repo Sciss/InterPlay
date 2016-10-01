@@ -117,11 +117,11 @@ object ProcTasten extends Process {
       val inF = try {
          AudioFile.openRead( inPath )
       } catch {
-         case e =>
+         case e: Throwable =>
             informDir( "Could not open audiofile for reading: " + inPath, force = true )
             return
       }
-      val buf           = inF.frameBuffer( 8192 )
+      val buf           = inF.buffer( 8192 )
 
       val jobs: List[ FScapeJobs.Bleach ] = res.map( smp => {
          val (start, stop) = isolateHit( smp.idx )
@@ -133,20 +133,20 @@ object ProcTasten extends Process {
          var remain = rvsLen
          while( remain > 0 ) {
             val chunkLen = math.min( remain, 8192 ).toInt
-            inF.seekFrame( start + remain - chunkLen )
-            inF.readFrames( buf, 0, chunkLen )
+            inF.seek( start + remain - chunkLen )
+            inF.read( buf, 0, chunkLen )
             DSP.reverse( buf, 0, chunkLen )
-            outF.writeFrames( buf, 0, chunkLen )
+            outF.write( buf, 0, chunkLen )
             remain -= chunkLen
          }
 
          // rest
-         inF.seekFrame( start )
+         inF.seek( start )
          remain = stop - start
          while( remain > 0 ) {
             val chunkLen = math.min( remain, 8192 ).toInt
-            inF.readFrames( buf, 0, chunkLen )
-            outF.writeFrames( buf, 0, chunkLen )
+            inF.read( buf, 0, chunkLen )
+            outF.write( buf, 0, chunkLen )
             remain -= chunkLen
          }
 

@@ -28,17 +28,18 @@
 
 package de.sciss.interplay
 
-import InterPlay._
-import SoundProcesses._
-import de.sciss.synth.Model
-import collection.immutable.{IndexedSeq => IIdxSeq, Set => ISet, SortedSet => ISortedSet}
-import actors.Actor
-import java.util.{TimerTask, Timer}
-import de.sciss.synth.io.AudioFile
 import java.io.IOException
-import edu.stanford.ppl.ccstm.Txn
-import de.sciss.synth.proc.{ProcDemiurg, DSL, Proc, TxnModel, Ref, ProcTxn}
-import DSL._
+import java.util.{Timer, TimerTask}
+
+import de.sciss.interplay.InterPlay._
+import de.sciss.interplay.SoundProcesses._
+import de.sciss.synth.Model
+import de.sciss.synth.io.AudioFile
+import de.sciss.synth.proc.DSL._
+import de.sciss.synth.proc.{Proc, ProcDemiurg, ProcTxn, Ref, TxnModel}
+
+import scala.actors.Actor
+import scala.collection.immutable.{Set => ISet, SortedSet => ISortedSet}
 
 object Process {
    val verbose = true
@@ -50,7 +51,7 @@ object Process {
       case d: Do => try {
          d.perform
       } catch {
-         case e =>
+         case e: Throwable =>
             println( "Caught exception in actor:" )
             e.printStackTrace()
       }
@@ -190,7 +191,7 @@ object Process {
             pout ~> coll
             pout.play
       }
-      true
+
    }
 
 //   def replaceTailOrDispose( p: Proc, fadeTime: Double = 0.0 )( implicit tx: ProcTxn ) : Boolean = {
@@ -379,7 +380,7 @@ srcs.foreach { p =>
             val spec = AudioFile.readSpec( inPath )
             math.min( anaClientBuf.framesWritten, spec.numFrames / AnalysisBuffer.anaWinStep ).toInt
          } catch {
-            case e => 0
+            case e: Throwable => 0
          }
       } getOrElse 0
    }
@@ -402,12 +403,12 @@ srcs.foreach { p =>
             inPath
          } else {
             val afOut      = FScape.createTempAudioFile( afIn )
-            val buf        = afIn.frameBuffer( 8192 )
+            val buf        = afIn.buffer( 8192 )
             var remaining  = numFrames
             while( remaining > 0L ) {
                val chunkLen   = math.min( 8192, remaining ).toInt
-               afIn.readFrames( buf, 0, chunkLen )
-               afOut.writeFrames( buf, 0, chunkLen )
+               afIn.read( buf, 0, chunkLen )
+               afOut.write( buf, 0, chunkLen )
                remaining -= chunkLen
             }
             afOut.close
@@ -419,7 +420,7 @@ srcs.foreach { p =>
          Some( outPath )
 
       } catch {
-         case e =>
+         case e: Throwable =>
             informDir( "Failed to copy live rec file. Reason:", force = true )
             e.printStackTrace()
             None

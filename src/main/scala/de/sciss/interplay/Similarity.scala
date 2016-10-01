@@ -63,11 +63,11 @@ object Similarity {
       def accept( f: File ) = try {
          val spec = AudioFile.readSpec( f )
          spec.numChannels == anaClientBuf.numChannels
-      } catch { case _ => false }
+      } catch { case _: Throwable => false }
    }).map( f => {
       val af   = AudioFile.openRead( f )
       val mat  = Mat( af.numFrames.toInt, anaClientBuf.numChannels )
-      af.readFrames( mat.arr )
+      af.read( mat.arr )
       af.close
       val name0= f.getName()
       val name = name0.substring( 0, name0.lastIndexOf( '.' ))
@@ -129,7 +129,7 @@ println( "framesWritten: " + numFrames )
       val buf        = anaClientBuf
       val path       = File.createTempFile( "svd", ".aif", new File( System.getProperty( "user.home" ), "Desktop" ))
       val af         = AudioFile.openWrite( path, AudioFileSpec( numChannels = 1, sampleRate = buf.sampleRate ))
-      val afBuf      = af.frameBuffer( 1024 )
+      val afBuf      = af.buffer( 1024 )
       val afChan     = afBuf( 0 )
       var bufPos     = 0
 
@@ -219,13 +219,13 @@ println( "framesWritten: " + numFrames )
          afChan( bufPos ) = process( x )
          bufPos += 1
          if( bufPos == 1024 ) {
-            af.writeFrames( afBuf )
+            af.write( afBuf )
             println( "---- " + af.numFrames )
             bufPos = 0
          }
       x += 1 }
 
-      af.writeFrames( afBuf, 0, bufPos )
+      af.write( afBuf, 0, bufPos )
       println( "---- " + af.numFrames + " : DONE!" )
       af.close
    }
@@ -303,7 +303,7 @@ println( "framesWritten: " + numFrames )
       prepare( off, mat )
       val f = new File( TEMPLATE_PATH, name + ".aif" )
       val af = AudioFile.openWrite( f, AudioFileSpec( numChannels = mat.numChannels, sampleRate = anaClientBuf.sampleRate ))
-      af.writeFrames( mat.arr )
+      af.write( mat.arr )
       af.close
    }
 

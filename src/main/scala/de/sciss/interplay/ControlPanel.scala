@@ -145,11 +145,11 @@ class ControlPanel() extends JPanel {
          panel.add( p )
       }
 
-      val d1 = logPane.getPreferredSize()
+      val d1 = logPane.component.peer.getPreferredSize()
       d1.height = d.height
-      logPane.setPreferredSize( d1 )
+      logPane.component.peer.setPreferredSize( d1 )
       space( 8 )
-      panel.add( logPane )
+      panel.add( logPane.component.peer)
       space( 16 )
 
       val glue = Box.createHorizontalGlue()
